@@ -1,2 +1,7 @@
 # macOS
 .DS_Store
+
+build
+venv
+.cache
+literature
