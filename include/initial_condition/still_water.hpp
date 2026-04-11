@@ -6,11 +6,12 @@ class StillWater : public InitialCondition {
     explicit StillWater(double h0) : h0_(h0) {};
 
     void apply(const Grid &grid, State &U) const override {
-        for (int i = 0; i < grid.Nx_total(); i++) {
-            for (int j = 0; j < grid.Ny_total(); j++) {
-                U.h()(i, j) = h0_;
-                U.hu()(i, j) = 0.0;
-                U.hv()(i, j) = 0.0;
+        const int nG = grid.nG();
+        for (int i = 0; i < grid.Nx(); i++) {
+            for (int j = 0; j < grid.Ny(); j++) {
+                U.h()(i + nG, j + nG) = h0_;
+                U.hu()(i + nG, j + nG) = 0.0;
+                U.hv()(i + nG, j + nG) = 0.0;
             }
         }
     }

@@ -94,7 +94,7 @@ $\hat{F}$ ... flux in x-direction (average over y)
 At interface $\left(i+\tfrac{1}{2},\,j\right)$, left and right states $U_L$ and $U_R$. Then
 
 $$
-\hat{F}_{i+\frac{1}{2},j} = \frac{1}{2}\Bigl(F(U_L)+ (U_R)\Bigr) - \frac{1}{2}a_{i+\frac{1}{2},j}(U_R-U_L)
+\hat{F}_{i+\frac{1}{2},j} = \frac{1}{2}\Bigl(F(U_L)+ F(U_R)\Bigr) - \frac{1}{2}a_{i+\frac{1}{2},j}(U_R-U_L)
 $$
 
 with dissipation speed
