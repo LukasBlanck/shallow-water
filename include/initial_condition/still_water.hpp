@@ -1,11 +1,9 @@
 #pragma once
-#include "include/core/grid.hpp"
-#include "include/core/state.hpp"
 #include "include/initial_condition/initial_condition.hpp"
 
-class still_water : public InitialCondition {
+class StillWater : public InitialCondition {
   public:
-    explicit still_water(double h0) : h0_(h0) {};
+    explicit StillWater(double h0) : h0_(h0) {};
 
     void apply(const Grid &grid, State &U) const override {
         for (int i = 0; i < grid.Nx_total(); i++) {

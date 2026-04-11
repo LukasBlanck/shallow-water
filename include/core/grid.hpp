@@ -16,7 +16,7 @@ class Grid {
     double Lx() const noexcept { return Lx_; }
     double Ly() const noexcept { return Ly_; }
 
-    double dx() const noexcept { return Lx_ / Nx_; }
+    double dx() const noexcept { return Lx_ / Nx_; }  // implicit cast from double Lx_
     double dy() const noexcept { return Ly_ / Ny_; }
 
     double x_center(int i) const noexcept { return (i + 0.5) * dx(); }

@@ -1,7 +1,7 @@
 #pragma once
 
-class Grid; // here only references are needed
-class State;
+#include "include/core/grid.hpp"
+#include "include/core/state.hpp"
 
 class InitialCondition {
   public:
