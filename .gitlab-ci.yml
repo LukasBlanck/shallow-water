@@ -1,0 +1,19 @@
+stages:
+  - format
+
+format_cpp:
+  stage: format
+  image: ubuntu:24.04
+  before_script:
+    - apt-get update
+    - apt-get install -y clang-format git
+    - chmod +x ./configs/format-cpp.sh
+  script:
+    - ./configs/format-cpp.sh .
+    - git diff --exit-code
+  rules:
+    - changes:
+        - "**/*.cpp"
+        - "**/*.hpp"
+        - ".clang-format"
+        - "configs/format-cpp.sh"

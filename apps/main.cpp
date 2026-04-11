@@ -6,8 +6,8 @@
 
 int main() {
 
-    Grid grid(100, 100, 20, 20, 1);         // build Grid: int Nx, int Ny, double Lx, double Ly, int nG
-    State U0(grid);                   // constructor
+    Grid grid(100, 100, 20, 20, 1); // build Grid: int Nx, int Ny, double Lx, double Ly, int nG
+    State U0(grid);                 // constructor
 
     // ------- Initial Condition --------
     // StillWater(3.0).apply(grid, U0); // initial state
