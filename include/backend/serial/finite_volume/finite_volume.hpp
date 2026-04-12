@@ -11,7 +11,7 @@ class FiniteVolume {
         : Nx_total_(grid.Nx_total()), Ny_total_(grid.Ny_total()), dx_(grid.dx()), dy_(grid.dy()),
           Fx_(Fx), Fy_(Fy) {};
 
-    void apply_spatial_operator(State &U, State &lhs) const {
+    void apply_spatial_operator(State &lhs) const {
         for (int i = nG_; i < (Nx_total_ - nG_); i++) {
             for (int j = nG_; j < (Ny_total_ - nG_); j++) {
                 lhs.h()(i, j) = (-1 / dx_) * (Fx_.h()(i + 1, j) - Fx_.h()(i, j)) -
