@@ -3,12 +3,16 @@
 // U_T = U_bar_i,j+1
 // U_B = U_bar_i,j
 
+#pragma once
+
 #include "include/backend/serial/reconstruction/reconstruction.hpp"
 #include "include/core/cell_state.hpp"
 
 class PiecewiseConst : public Reconstruction {
     // These functions return the values of the cells (i,j) neighbouring the face
   public:
+    PiecewiseConst() = default;
+
     // x neighbours   (left and right)
     CellState U_L(const State &U, int i, int j) const override {
         return CellState(U.h()(i, j), U.hu()(i, j), U.hv()(i, j));

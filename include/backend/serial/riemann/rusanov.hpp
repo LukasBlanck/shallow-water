@@ -7,6 +7,8 @@
 
 class Rusanov : public RiemannSolver {
   public:
+    Rusanov() = default;
+
     CellState x_flux(const CellState &U_L, const CellState &U_R) const override {
         double a = get_dissipation_speed(U_L.u(), U_L.h(), U_R.u(), U_R.h());
         CellState lhs = 0.5 * (F(U_L) + F(U_R)) - 0.5 * a * (U_R - U_L);
@@ -14,8 +16,8 @@ class Rusanov : public RiemannSolver {
     }
 
     CellState y_flux(const CellState &U_B, const CellState &U_T) const override {
-        double a = get_dissipation_speed(U_B.u(), U_B.h(), U_T.u(), U_T.h());
-        CellState lhs = 0.5 * (F(U_B) + F(U_T)) - 0.5 * a * (U_T - U_B);
+        double a = get_dissipation_speed(U_B.v(), U_B.h(), U_T.v(), U_T.h());
+        CellState lhs = 0.5 * (G(U_B) + G(U_T)) - 0.5 * a * (U_T - U_B);
         return lhs;
     }
 

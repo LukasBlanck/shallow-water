@@ -6,7 +6,7 @@
 #include "include/core/state.hpp"
 class Reconstruction {
   public:
-    Reconstruction();
+    Reconstruction() = default;
 
     // for x fluxes
     CellState virtual U_L(const State &U, int i, int j) const = 0;

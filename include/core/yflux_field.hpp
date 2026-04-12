@@ -1,6 +1,6 @@
 #pragma once
 
-#include "include/core/YFlux.hpp"
+#include "include/core/yflux.hpp"
 
 class YFluxField {
   public:

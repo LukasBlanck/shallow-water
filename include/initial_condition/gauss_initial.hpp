@@ -21,6 +21,8 @@ class GaussInitial : public InitialCondition {
                     h0_ +
                     peak_height_ * std::exp(-((x - x0_) * (x - x0_)) / (2 * sigma_x_ * sigma_x_) -
                                             ((y - y0_) * (y - y0_)) / (2 * sigma_y_ * sigma_y_));
+                U.hu()(i + nG, j + nG) = 0.0;
+                U.hv()(i + nG, j + nG) = 0.0;
             }
         }
     }

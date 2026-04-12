@@ -7,21 +7,21 @@
 
 class FiniteVolume {
   public:
-    FiniteVolume(const Grid &grid, XFluxField &Fx, YFluxField &Fy)
+    FiniteVolume(const Grid &grid)
         : Nx_total_(grid.Nx_total()), Ny_total_(grid.Ny_total()), dx_(grid.dx()), dy_(grid.dy()),
-          Fx_(Fx), Fy_(Fy) {};
+          nG_(grid.nG()) {};
 
-    void apply_spatial_operator(State &lhs) const {
+    void apply_spatial_operator(State &lhs, const XFluxField &Fx, const YFluxField &Fy) const {
         for (int i = nG_; i < (Nx_total_ - nG_); i++) {
             for (int j = nG_; j < (Ny_total_ - nG_); j++) {
-                lhs.h()(i, j) = (-1 / dx_) * (Fx_.h()(i + 1, j) - Fx_.h()(i, j)) -
-                                (1 / dy_) * (Fy_.h()(i, j + 1) - Fy_.h()(i, j));
+                lhs.h()(i, j) = (-1 / dx_) * (Fx.h()(i, j) - Fx.h()(i - 1, j)) -
+                                (1 / dy_) * (Fy.h()(i, j) - Fy.h()(i, j - 1));
 
-                lhs.hu()(i, j) = (-1 / dx_) * (Fx_.hu()(i + 1, j) - Fx_.hu()(i, j)) -
-                                 (1 / dy_) * (Fy_.hu()(i, j + 1) - Fy_.hu()(i, j));
+                lhs.hu()(i, j) = (-1 / dx_) * (Fx.hu()(i, j) - Fx.hu()(i - 1, j)) -
+                                 (1 / dy_) * (Fy.hu()(i, j) - Fy.hu()(i, j - 1));
 
-                lhs.hv()(i, j) = (-1 / dx_) * (Fx_.hv()(i + 1, j) - Fx_.hv()(i, j)) -
-                                 (1 / dy_) * (Fy_.hv()(i, j + 1) - Fy_.hv()(i, j));
+                lhs.hv()(i, j) = (-1 / dx_) * (Fx.hv()(i, j) - Fx.hv()(i - 1, j)) -
+                                 (1 / dy_) * (Fy.hv()(i, j) - Fy.hv()(i, j - 1));
             }
         }
     };
@@ -33,8 +33,5 @@ class FiniteVolume {
     double dx_;
     double dy_;
 
-    double nG_;
-    // those states come from piece.const.rec. or MUSCL
-    XFluxField &Fx_;
-    YFluxField &Fy_;
+    int nG_;
 };
