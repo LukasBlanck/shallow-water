@@ -11,6 +11,12 @@ format_cpp:
   script:
     - ./configs/format-cpp.sh .
     - git diff --exit-code
+    - pwd
+    - ls -la
+    - ls -la configs
+    - clang-format --version
+    - ./configs/format-cpp.sh .
+    - git diff --exit-code
   rules:
   - changes:
       - "**/*.cpp"
