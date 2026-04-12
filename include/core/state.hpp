@@ -3,6 +3,7 @@
 #include "include/core/grid.hpp"
 
 class State {
+    // This class contains double h, hu and hv for ALL cells (inclusively ghost cells)
   public:
     State(const Grid &grid)
         : h_(grid.Nx_total(), grid.Ny_total()), hu_(grid.Nx_total(), grid.Ny_total()),

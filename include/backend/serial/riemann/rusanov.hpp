@@ -1,0 +1,46 @@
+#pragma once
+
+#include "include/backend/serial/riemann/riemann.hpp"
+#include "include/constants.hpp"
+#include "include/core/cell_state.hpp"
+#include <algorithm>
+#include <cmath>
+#include <cstdlib>
+
+class Rusanov : public RiemannSolver {
+  public:
+    CellState x_flux(const CellState &U_L, const CellState &U_R) const override {
+        CellState F_of_U_L(0.0, 0.0, 0.0);
+        CellState F_of_U_R(0.0, 0.0, 0.0);
+        double a = get_dissipation_speed(U_L.u(), U_L.h(), U_R.u(), U_R.h());
+        CellState lhs = 0.5 * (F(U_L) + F(U_R)) - 0.5 * a * (U_R - U_L);
+        return lhs;
+    }
+
+    CellState y_flux(const CellState &U_B, const CellState &U_T) const override {
+        CellState F_of_U_B(0.0, 0.0, 0.0);
+        CellState F_of_U_T(0.0, 0.0, 0.0);
+        double a = get_dissipation_speed(U_B.u(), U_B.h(), U_T.u(), U_T.h());
+        CellState lhs = 0.5 * (F(U_B) + F(U_T)) - 0.5 * a * (U_T - U_B);
+        return lhs;
+    }
+
+  private:
+    double get_dissipation_speed(double u_L_B, double h_L_B, double u_R_T, double h_R_T) const {
+        h_R_T = std::max(h_R_T, 0.0); // to avoid negative square root
+        h_L_B = std::max(h_L_B, 0.0); // to avoid negative square root
+
+        return std::max((std::abs(u_L_B) + std::sqrt(constants::g * h_L_B)),
+                        (std::abs(u_R_T) + std::sqrt(constants::g * h_R_T)));
+    }
+
+    CellState F(const CellState &U) const {
+        return CellState(U.hu(), U.u() * U.u() * U.h() + 0.5 * constants::g * U.h() * U.h(),
+                         U.hu() * U.v());
+    }
+
+    CellState G(const CellState &U) const {
+        return CellState(U.hv(), U.hu() * U.v(),
+                         U.h() * U.v() * U.v() + 0.5 * constants::g * U.h() * U.h());
+    }
+};
