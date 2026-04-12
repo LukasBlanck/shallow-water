@@ -2,16 +2,21 @@
 set -euo pipefail
 
 ROOT_DIR="${1:-.}"
-STYLE="${STYLE:-file}"   # uses .clang-format by default
-DRY_RUN="${DRY_RUN:-0}"  # set to 1 to preview only
+FORMAT_FILE="$ROOT_DIR/configs/.clang-format"
+DRY_RUN="${DRY_RUN:-0}"
 
 if ! command -v clang-format >/dev/null 2>&1; then
   echo "Error: clang-format is not installed or not in PATH." >&2
   exit 1
 fi
 
+if [[ ! -f "$FORMAT_FILE" ]]; then
+  echo "Error: format file not found: $FORMAT_FILE" >&2
+  exit 1
+fi
+
 echo "Scanning: $ROOT_DIR"
-echo "Style: $STYLE"
+echo "Using format file: $FORMAT_FILE"
 
 found=0
 
@@ -21,7 +26,7 @@ while IFS= read -r -d '' file; do
     echo "Would format: $file"
   else
     echo "Formatting: $file"
-    clang-format -i -style="$STYLE" "$file"
+    clang-format -i -style="file:$FORMAT_FILE" "$file"
   fi
 done < <(
   find "$ROOT_DIR" \
