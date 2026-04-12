@@ -13,11 +13,11 @@ class FluxAssembly {
                 CellState UL = recon.U_L(U, i, j);
                 CellState UR = recon.U_R(U, i, j);
 
-                CellState Fhat = riemann_solver.x_flux(UL, UR);
+                CellState F_hat = riemann_solver.x_flux(UL, UR);
 
-                Fx.h()(i, j) = Fhat.h();
-                Fx.hu()(i, j) = Fhat.hu();
-                Fx.hv()(i, j) = Fhat.hv();
+                Fx.h()(i, j) = F_hat.h();
+                Fx.hu()(i, j) = F_hat.hu();
+                Fx.hv()(i, j) = F_hat.hv();
             }
         }
     }

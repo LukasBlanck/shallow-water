@@ -9,10 +9,10 @@ class Reconstruction {
     Reconstruction();
 
     // for x fluxes
-    CellState virtual U_L(State &U, int i, int j) const = 0;
-    CellState virtual U_R(State &U, int i, int j) const = 0;
+    CellState virtual U_L(const State &U, int i, int j) const = 0;
+    CellState virtual U_R(const State &U, int i, int j) const = 0;
 
     // for y fluxes
-    CellState virtual U_B(State &U, int i, int j) const = 0;
-    CellState virtual U_T(State &U, int i, int j) const = 0;
+    CellState virtual U_B(const State &U, int i, int j) const = 0;
+    CellState virtual U_T(const State &U, int i, int j) const = 0;
 };
