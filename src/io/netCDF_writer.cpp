@@ -3,6 +3,7 @@
 #include "include/core/grid.hpp"
 #include "include/core/state.hpp"
 
+#include <cmath>
 #include <filesystem>
 
 NetCDFWriter::NetCDFWriter(const std::string &path, const Grid &grid)
@@ -60,7 +61,31 @@ void NetCDFWriter::pack_interior_into(const Array2D &A, std::vector<double> &buf
     }
 }
 
-void NetCDFWriter::write_snapshot(const State &U, double time) {
+void NetCDFWriter::write_snapshot(const State &U, double time,
+                                  double dt,
+                                  const std::string &riemann_solver,
+                                  const std::string &reconstruction,
+                                  const std::string &time_integrator) {
+    if (!metadata_written_ &&
+        (!std::isnan(dt) || !riemann_solver.empty() || !reconstruction.empty() ||
+         !time_integrator.empty())) {
+
+        if (!std::isnan(dt)) {
+            file_.putAtt("dt", netCDF::ncDouble, dt);
+        }
+        if (!riemann_solver.empty()) {
+            file_.putAtt("riemann_solver", riemann_solver);
+        }
+        if (!reconstruction.empty()) {
+            file_.putAtt("reconstruction", reconstruction);
+        }
+        if (!time_integrator.empty()) {
+            file_.putAtt("time_integrator", time_integrator);
+        }
+
+        metadata_written_ = true;
+    }
+
     time_var_.putVar(std::vector<size_t>{next_record_}, time);
 
     pack_interior_into(U.h(), h_buf_);

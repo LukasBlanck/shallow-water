@@ -66,7 +66,7 @@ int main() {
     bc.apply_BC(U);
 
     // always write initial condition
-    writer.write_snapshot(U, time);
+    writer.write_snapshot(U, time, dt, "Rusanov", "PiecewiseConst", "SSPRK3");
 
     // ---------------- Helper: compute RHS = L(U) ----------------
     auto compute_rhs = [&](State &U_in, State &L_out) {

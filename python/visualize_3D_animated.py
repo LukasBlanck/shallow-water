@@ -28,9 +28,31 @@ MIN_BUFFER = 1e-12
 ELEV = 30
 AZIM = -135
 
+# Optional info box in plot
+SHOW_INFO_BOX = True
+
 
 # ---------------- Load dataset ----------------
 ds = xr.open_dataset(FILE_PATH, engine="netcdf4")
+
+# ---------------- Metadata: read once, print once ----------------
+dt_used = ds.attrs.get("dt", None)
+riemann_solver = ds.attrs.get("riemann_solver", "n/a")
+reconstruction = ds.attrs.get("reconstruction", "n/a")
+time_integrator = ds.attrs.get("time_integrator", "n/a")
+
+print("Simulation metadata:")
+print(f"  dt              = {dt_used}" if dt_used is not None else "  dt              = n/a")
+print(f"  Riemann solver  = {riemann_solver}")
+print(f"  reconstruction  = {reconstruction}")
+print(f"  time integrator = {time_integrator}")
+
+info_text = "\n".join([
+    f"dt = {dt_used}" if dt_used is not None else "dt = n/a",
+    f"Riemann: {riemann_solver}",
+    f"Recon: {reconstruction}",
+    f"Time int.: {time_integrator}",
+])
 
 x = ds["x"].values
 y = ds["y"].values
@@ -75,6 +97,15 @@ ax.set_zlim(vmin, vmax)
 ax.view_init(elev=ELEV, azim=AZIM)
 
 title = ax.set_title(f"{VAR_NAME} at t={float(t[0]):.6f}")
+
+if SHOW_INFO_BOX:
+    ax.text2D(
+        0.02, 0.98, info_text,
+        transform=ax.transAxes,
+        va="top",
+        ha="left",
+        bbox=dict(boxstyle="round", facecolor="white", alpha=0.85)
+    )
 
 # Initial surface
 surf = ax.plot_surface(
