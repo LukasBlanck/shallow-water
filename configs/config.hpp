@@ -10,7 +10,7 @@ enum class BoundaryType { ReflectingWalls };
 
 enum class BathymetryType { Flat };
 
-enum class InitialConditionType { GaussInitial };
+enum class InitialConditionType { GaussInitial, StillWater };
 
 enum class ReconstructionType { PiecewiseConst };
 

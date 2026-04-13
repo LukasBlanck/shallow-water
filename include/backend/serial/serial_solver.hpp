@@ -12,6 +12,7 @@
 #include "include/core/xflux_field.hpp"
 #include "include/core/yflux_field.hpp"
 #include "include/initial_condition/gauss_initial.hpp"
+#include "include/initial_condition/still_water.hpp"
 #include "include/io/netCDF_writer.hpp"
 
 #include <algorithm>
@@ -115,6 +116,11 @@ class SerialSolver {
             GaussInitial ic(cfg_.initial_condition.peak_height, cfg_.initial_condition.sigma_x,
                             cfg_.initial_condition.sigma_y, cfg_.initial_condition.x0,
                             cfg_.initial_condition.y0, cfg_.initial_condition.h0);
+            ic.apply(grid_, U_);
+            return;
+        }
+        case InitialConditionType::StillWater: {
+            StillWater ic(cfg_.initial_condition.h0);
             ic.apply(grid_, U_);
             return;
         }

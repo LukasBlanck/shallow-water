@@ -1,4 +1,5 @@
 #include "configs/simulation_config.hpp"
+#include "configs/config.hpp"
 
 #include <cstdint>
 #include <extern/toml.hpp>
@@ -34,6 +35,7 @@ TimeIntegratorType parse_time_integrator_type(const std::string &s) {
 
 InitialConditionType parse_initial_condition_type(const std::string &s) {
     if (s == "GaussInitial") return InitialConditionType::GaussInitial;
+    else if (s == "StillWater") return InitialConditionType::StillWater;
     throw std::runtime_error("Unknown initial condition: " + s);
 }
 

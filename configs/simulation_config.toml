@@ -15,13 +15,13 @@ type = "Flat"
 type = "ReflectingWalls"
 
 [initial_condition]
-type = "GaussInitial"
+type = "StillWater"       # [GaussInitial, StillWater]
 peak_height = 3.0
 x0 = 3.0
 y0 = 7.0
 sigma_x = 2
 sigma_y = 0.7
-h0 = 2.0
+h0 = 2.0        # for GaussInitial OR StillWater
 
 [solver]
 reconstruction = "PiecewiseConst"
