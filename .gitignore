@@ -12,6 +12,8 @@ literature
 
 # Personal release log
 docs/v*
+html/
+Doxyfile
 
 # Personal presentations
 *.pptx
