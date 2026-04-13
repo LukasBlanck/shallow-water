@@ -6,6 +6,12 @@ venv
 .cache
 literature
 
-*.pptx
+# Simulation output
 *.mp4
 *.nc
+
+# Personal release log
+docs/v*
+
+# Personal presentations
+*.pptx
