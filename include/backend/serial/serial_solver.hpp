@@ -28,6 +28,7 @@ class SerialSolver {
         : cfg_(cfg), grid_(cfg.mesh.Nx, cfg.mesh.Ny, cfg.mesh.Lx, cfg.mesh.Ly, cfg.mesh.nG),
           dt_(cfg.time.end_time / static_cast<double>(cfg.time.time_steps)),
           end_time_(cfg.time.end_time), steps_(cfg.time.time_steps),
+          save_every_(static_cast<std::size_t>(cfg.time.save_every)),
 
           U_(grid_), U1_(grid_), U2_(grid_), U_next_(grid_), rhs_(grid_),
 
@@ -35,7 +36,8 @@ class SerialSolver {
 
           x_flux_field_(grid_), y_flux_field_(grid_),
 
-          writer_(cfg.output.path.string(), grid_) {
+          writer_(cfg.output.path.string(), grid_, cfg.mesh.spatial_unit_x, cfg.mesh.spatial_unit_y,
+                  cfg.mesh.spatial_unit_h, cfg.time.time_unit, cfg.time.save_every) {
         apply_initial_condition();
 
         // keep ghost cells valid before first write / rhs
@@ -169,8 +171,8 @@ class SerialSolver {
 
                 dt_limit = std::min(dt_cell, dt_limit);
             }
-            return dt_limit;
         }
+        return dt_limit;
     }
 
   private:

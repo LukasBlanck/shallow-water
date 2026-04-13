@@ -5,8 +5,11 @@
 
 #include <cmath>
 #include <filesystem>
+#include <string>
 
-NetCDFWriter::NetCDFWriter(const std::string &path, const Grid &grid)
+NetCDFWriter::NetCDFWriter(const std::string &path, const Grid &grid,
+                           const std::string &spatial_unit_x, const std::string &spatial_unit_y, const std::string &spatial_unit_h,
+                           const std::string &time_unit, int save_every)
     : grid_(grid), file_([&]() {
           std::filesystem::path p(path);
           if (p.has_parent_path()) {
@@ -15,7 +18,8 @@ NetCDFWriter::NetCDFWriter(const std::string &path, const Grid &grid)
           return netCDF::NcFile(path, netCDF::NcFile::replace);
       }()),
       nx_(static_cast<std::size_t>(grid_.Nx())), ny_(static_cast<std::size_t>(grid_.Ny())),
-      h_buf_(nx_ * ny_), hu_buf_(nx_ * ny_), hv_buf_(nx_ * ny_) {
+      h_buf_(nx_ * ny_), hu_buf_(nx_ * ny_), hv_buf_(nx_ * ny_), spatial_unit_x_(spatial_unit_x),
+      spatial_unit_y_(spatial_unit_y), spatial_unit_h_(spatial_unit_h), time_unit_(time_unit), save_every_(save_every){
     define_file_structure();
     write_coordinates();
 }
@@ -32,6 +36,21 @@ void NetCDFWriter::define_file_structure() {
     h_var_ = file_.addVar("h", netCDF::ncDouble, {time_dim_, x_dim_, y_dim_});
     hu_var_ = file_.addVar("hu", netCDF::ncDouble, {time_dim_, x_dim_, y_dim_});
     hv_var_ = file_.addVar("hv", netCDF::ncDouble, {time_dim_, x_dim_, y_dim_});
+
+    if (!spatial_unit_x_.empty()) {
+        x_var_.putAtt("units", spatial_unit_x_);
+    }
+    if (!spatial_unit_y_.empty()) {
+        y_var_.putAtt("units", spatial_unit_y_);
+    }
+    if (!spatial_unit_h_.empty()) {
+        h_var_.putAtt("units", spatial_unit_h_);
+    }
+    if (!time_unit_.empty()) {
+        time_var_.putAtt("units", time_unit_);
+    }
+
+    file_.putAtt("save_every", netCDF::ncInt, save_every_);
 }
 
 void NetCDFWriter::write_coordinates() {
