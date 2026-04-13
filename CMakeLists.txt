@@ -8,6 +8,8 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 add_executable(my_project
     apps/main.cpp
     src/io/netcdf_writer.cpp
+    configs/simulation_config.cpp
+    configs/config.hpp
 )
 
 target_include_directories(my_project

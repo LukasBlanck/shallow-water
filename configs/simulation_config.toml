@@ -1,0 +1,40 @@
+[mesh]
+Lx = 10         # domain length in x
+Ly = 10         # domain length in y
+nG = 1          # number of ghost cells
+Nx = 50         # spatial resolution in x
+Ny = 50         # spatial resolution in y
+
+[bathymetry]
+type = "Flat"
+
+[boundary]
+type = "ReflectingWalls"
+
+[initial_condition]
+type = "GaussInitial"
+peak_height = 3.0
+x0 = 3.0
+y0 = 7.0
+sigma_x = 2
+sigma_y = 0.7
+h0 = 2.0
+
+[solver]
+reconstruction = "PiecewiseConst"
+riemann = "Rusanov"
+time = "SSPRK3"
+limiter = "minmod"
+positivity_preserving = true
+
+[time]
+end_time = 5.0
+time_steps = 2000
+cfl = 0.45
+
+[backend]
+type = "serial"
+threads = 2
+
+[output]
+path = "output/simulation.nc"

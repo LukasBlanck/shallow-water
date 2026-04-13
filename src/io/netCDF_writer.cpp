@@ -61,14 +61,12 @@ void NetCDFWriter::pack_interior_into(const Array2D &A, std::vector<double> &buf
     }
 }
 
-void NetCDFWriter::write_snapshot(const State &U, double time,
-                                  double dt,
+void NetCDFWriter::write_snapshot(const State &U, double time, double dt,
                                   const std::string &riemann_solver,
                                   const std::string &reconstruction,
                                   const std::string &time_integrator) {
-    if (!metadata_written_ &&
-        (!std::isnan(dt) || !riemann_solver.empty() || !reconstruction.empty() ||
-         !time_integrator.empty())) {
+    if (!metadata_written_ && (!std::isnan(dt) || !riemann_solver.empty() ||
+                               !reconstruction.empty() || !time_integrator.empty())) {
 
         if (!std::isnan(dt)) {
             file_.putAtt("dt", netCDF::ncDouble, dt);
