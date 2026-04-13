@@ -48,7 +48,7 @@ print(f"  reconstruction  = {reconstruction}")
 print(f"  time integrator = {time_integrator}")
 
 info_text = "\n".join([
-    f"dt = {dt_used}" if dt_used is not None else "dt = n/a",
+    f"dt = {dt_used:.6g}" if dt_used is not None else "dt = n/a",
     f"Riemann: {riemann_solver}",
     f"Recon: {reconstruction}",
     f"Time int.: {time_integrator}",

@@ -43,6 +43,13 @@ class SerialSolver {
     }
 
     void run() {
+        const double dt_stable = compute_stable_dt(U_);
+
+        if (dt_ > dt_stable) {
+            throw std::runtime_error("Time step too large: dt = " + std::to_string(dt_) +
+                                     ", but CFL requires dt <= " + std::to_string(dt_stable));
+        }
+
         double time = 0.0;
 
         writer_.write_snapshot(U_, time, dt_, riemann_name(), reconstruction_name(),
@@ -135,6 +142,34 @@ class SerialSolver {
             return "SSPRK3";
         } else {
             return "UnknownTimeIntegrator";
+        }
+    }
+
+    double compute_stable_dt(const State &U) const {
+        double dt_limit = std::numeric_limits<double>::max();
+
+        for (int i = grid_.nG(); i < grid_.nG() + grid_.Nx(); i++) {
+            for (int j = grid_.nG(); j < grid_.nG() + grid_.Ny(); j++) {
+                const double h = U.h()(i, j);
+                const double hu = U.hu()(i, j);
+                const double hv = U.hv()(i, j);
+
+                if (h <= 0.0) {
+                    throw std::runtime_error(
+                        "Could not perform stability check for dt becuase dt <= 0!");
+                }
+
+                const double u = hu / h;
+                const double v = hv / h;
+
+                const double dt_cell =
+                    cfg_.time.cfl *
+                    (1 / ((std::abs(u) + std::sqrt(constants::g * h)) / grid_.dx() +
+                          (std::abs(v) + std::sqrt(constants::g * h)) / grid_.dy()));
+
+                dt_limit = std::min(dt_cell, dt_limit);
+            }
+            return dt_limit;
         }
     }
 

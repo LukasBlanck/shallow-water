@@ -162,7 +162,7 @@ ax.set_ylim(float(y_edges[0]), float(y_edges[-1]))
 if SHOW_INFO_BOX:
     info_text = "\n".join([
         f"t = {physical_time:.6g}",
-        f"dt = {dt_used if dt_used is not None else 'n/a'}",
+        f"dt = {dt_used:.6g}" if dt_used is not None else "dt ='n/a'",
         f"Riemann: {riemann_solver}",
         f"Recon: {reconstruction}",
         f"Time int.: {time_integrator}",
