@@ -8,8 +8,9 @@
 #include <string>
 
 NetCDFWriter::NetCDFWriter(const std::string &path, const Grid &grid,
-                           const std::string &spatial_unit_x, const std::string &spatial_unit_y, const std::string &spatial_unit_h,
-                           const std::string &time_unit, int save_every)
+                           const std::string &spatial_unit_x, const std::string &spatial_unit_y,
+                           const std::string &spatial_unit_h, const std::string &time_unit,
+                           int save_every)
     : grid_(grid), file_([&]() {
           std::filesystem::path p(path);
           if (p.has_parent_path()) {
@@ -19,7 +20,8 @@ NetCDFWriter::NetCDFWriter(const std::string &path, const Grid &grid,
       }()),
       nx_(static_cast<std::size_t>(grid_.Nx())), ny_(static_cast<std::size_t>(grid_.Ny())),
       h_buf_(nx_ * ny_), hu_buf_(nx_ * ny_), hv_buf_(nx_ * ny_), spatial_unit_x_(spatial_unit_x),
-      spatial_unit_y_(spatial_unit_y), spatial_unit_h_(spatial_unit_h), time_unit_(time_unit), save_every_(save_every){
+      spatial_unit_y_(spatial_unit_y), spatial_unit_h_(spatial_unit_h), time_unit_(time_unit),
+      save_every_(save_every) {
     define_file_structure();
     write_coordinates();
 }

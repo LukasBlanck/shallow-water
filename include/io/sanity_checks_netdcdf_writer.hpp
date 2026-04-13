@@ -6,16 +6,12 @@
 
 class SanityCheckNetCDFWriter {
   public:
-    SanityCheckNetCDFWriter(const std::string &path,
-                            const std::string &time_unit,
-                            int save_every,
-                            double dt,
-                            const std::string &riemann_solver,
-                            const std::string &reconstruction,
-                            const std::string &time_integrator);
+    SanityCheckNetCDFWriter(const std::string &path, const std::string &time_unit, int save_every,
+                            double dt, const std::string &riemann_solver,
+                            const std::string &reconstruction, const std::string &time_integrator);
 
-    void write_mass_conservation(std::size_t step, double time, double mass,
-                                 double abs_err, double rel_err);
+    void write_mass_conservation(std::size_t step, double time, double mass, double abs_err,
+                                 double rel_err);
 
   private:
     void define_file_structure();

@@ -1,6 +1,7 @@
 #include "tests/sanity_checks/sanity_checks.hpp"
 
 #include "tests/sanity_checks/mass_conservation.hpp"
+#include "tests/sanity_checks/positivity.hpp"
 
 #include <memory>
 #include <vector>
@@ -10,6 +11,9 @@ std::vector<std::unique_ptr<SanityCheck>> make_sanity_checks(const SimulationCon
 
     if (cfg.sanity_checks.mass_conservation) {
         checks.push_back(std::make_unique<MassConservation>());
+    }
+    if (cfg.sanity_checks.positivity) {
+        checks.push_back(std::make_unique<Positivity>());
     }
 
     return checks;

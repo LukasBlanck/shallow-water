@@ -62,7 +62,7 @@ for ax, plot_kind in zip(axes, available_plots):
             ax.plot(t, rel_err, marker="o", linewidth=1.5, markersize=4)
 
         ax.set_xlabel(f"time [{time_unit}]".strip())
-        ax.set_ylabel("relative mass error [1]")
+        ax.set_ylabel("relative mass error")
         ax.set_title("Mass conservation")
         ax.grid(True, which="both", alpha=0.3)
 

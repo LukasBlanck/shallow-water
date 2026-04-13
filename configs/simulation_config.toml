@@ -43,8 +43,7 @@ threads = 2
 
 [sanity_checks]
 mass_conservation = true        # [true, false]
-positivity = false
-convergence = false
+positivity = true
 output_path = "output/sanity_checks.nc"
 
 [output]
