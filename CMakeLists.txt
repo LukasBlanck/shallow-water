@@ -10,6 +10,8 @@ add_executable(my_project
     src/io/netcdf_writer.cpp
     configs/simulation_config.cpp
     configs/config.hpp
+    tests/sanity_checks/sanity_checks.cpp
+    include/io/sanity_checks_netcdf_writer.cpp
 )
 
 target_include_directories(my_project

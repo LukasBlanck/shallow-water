@@ -15,7 +15,7 @@ type = "Flat"
 type = "ReflectingWalls"
 
 [initial_condition]
-type = "StillWater"       # [GaussInitial, StillWater]
+type = "GaussInitial"       # [GaussInitial, StillWater]
 peak_height = 3.0
 x0 = 3.0
 y0 = 7.0
@@ -40,6 +40,12 @@ save_every = 10        # every * step gets written out
 [backend]
 type = "serial"
 threads = 2
+
+[sanity_checks]
+mass_conservation = true        # [true, false]
+positivity = false
+convergence = false
+output_path = "output/sanity_checks.nc"
 
 [output]
 path = "output/simulation.nc"

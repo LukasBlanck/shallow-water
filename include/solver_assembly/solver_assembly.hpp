@@ -1,10 +1,7 @@
 #pragma once
 
 #include "configs/simulation_config.hpp"
-#include "include/backend/serial/reconstruction/piecewise_const.hpp"
-#include "include/backend/serial/riemann/rusanov.hpp"
 #include "include/backend/serial/serial_solver.hpp"
-#include "include/backend/serial/ssp_rk3/ssp_rk3.hpp"
 #include "include/boundary/reflecting_walls.hpp"
 
 #include <filesystem>
@@ -55,6 +52,18 @@ class SolverAssembly {
         if (cfg_.initial_condition.type == InitialConditionType::GaussInitial) {
             if (cfg_.initial_condition.sigma_x <= 0.0 || cfg_.initial_condition.sigma_y <= 0.0) {
                 throw std::runtime_error("Gaussian sigmas must be positive");
+            }
+        }
+
+        if (cfg_.initial_condition.type == InitialConditionType::GaussInitial) {
+            if (cfg_.initial_condition.h0 < 0.0) {
+                throw std::runtime_error("h0 must be positive");
+            }
+        }
+
+        if (cfg_.initial_condition.type == InitialConditionType::StillWater) {
+            if (cfg_.initial_condition.h0 < 0.0) {
+                throw std::runtime_error("h0 must be positive");
             }
         }
 

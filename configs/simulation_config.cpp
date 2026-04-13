@@ -34,8 +34,10 @@ TimeIntegratorType parse_time_integrator_type(const std::string &s) {
 }
 
 InitialConditionType parse_initial_condition_type(const std::string &s) {
-    if (s == "GaussInitial") return InitialConditionType::GaussInitial;
-    else if (s == "StillWater") return InitialConditionType::StillWater;
+    if (s == "GaussInitial")
+        return InitialConditionType::GaussInitial;
+    else if (s == "StillWater")
+        return InitialConditionType::StillWater;
     throw std::runtime_error("Unknown initial condition: " + s);
 }
 
@@ -145,6 +147,18 @@ SimulationConfig load_config(const std::filesystem::path &path) {
     if (!output) throw std::runtime_error("Missing or invalid [output] table");
 
     cfg.output.path = require_value<std::string>((*output)["path"], "output.path");
+
+    const toml::table *sanity = tbl["sanity_checks"].as_table();
+    if (sanity) {
+        cfg.sanity_checks.mass_conservation =
+            (*sanity)["mass_conservation"].value<bool>().value_or(false);
+
+        cfg.sanity_checks.positivity = (*sanity)["positivity"].value<bool>().value_or(false);
+
+        cfg.sanity_checks.convergence = (*sanity)["convergence"].value<bool>().value_or(false);
+
+        cfg.sanity_checks.output_path = require_value<std::string>((*sanity)["output_path"], "output_path");
+    }
 
     return cfg;
 }
