@@ -63,3 +63,8 @@ python3 pip install configs/requirements.txt
 ```
 python3 python/visualize_3D_animated.py
 ```
+
+## License
+Copyright (c) 2026 Lukas Blanck
+
+MIT License —  [LICENSE](LICENSE).
