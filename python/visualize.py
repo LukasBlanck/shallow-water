@@ -100,6 +100,7 @@ if VERBOSE:
     print(f"x units: {ds['x'].attrs.get('units', 'not specified')}")
     print(f"y units: {ds['y'].attrs.get('units', 'not specified')}")
     print(f"time units: {ds['time'].attrs.get('units', 'not specified')}")
+    print(f"save_every = {ds.attrs.get("save_every", "not specified")}")
     print()
     print("Simulation setup:")
     print(f"dt: {dt_used if dt_used is not None else 'not specified'}")
@@ -153,7 +154,7 @@ fig.colorbar(
 ax.set_xlabel(f"x [{ds['x'].attrs.get('units', '')}]".strip())
 ax.set_ylabel(f"y [{ds['y'].attrs.get('units', '')}]".strip())
 ax.set_zlabel(f"{VAR_NAME} [{ds[VAR_NAME].attrs.get('units', '')}]".strip())
-ax.set_title(f"{VAR_NAME} at t={physical_time:.3f}")
+ax.set_title(f"{VAR_NAME} at t={physical_time:.3f} {ds['time'].attrs.get('units', 'not specified')}")
 
 # use actual cell edges as plot bounds
 ax.set_xlim(float(x_edges[0]), float(x_edges[-1]))
@@ -161,8 +162,8 @@ ax.set_ylim(float(y_edges[0]), float(y_edges[-1]))
 
 if SHOW_INFO_BOX:
     info_text = "\n".join([
-        f"t = {physical_time:.6g}",
-        f"dt = {dt_used:.6g}" if dt_used is not None else "dt ='n/a'",
+        f"t = {physical_time:.6g} {ds['time'].attrs.get('units', 'not specified')}",
+        f"dt = {dt_used:.6g} {ds['time'].attrs.get('units', 'not specified')}" if dt_used is not None else "dt ='n/a'",
         f"Riemann: {riemann_solver}",
         f"Recon: {reconstruction}",
         f"Time int.: {time_integrator}",

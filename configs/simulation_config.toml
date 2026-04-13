@@ -4,6 +4,9 @@ Ly = 10         # domain length in y
 nG = 1          # number of ghost cells
 Nx = 50         # spatial resolution in x
 Ny = 50         # spatial resolution in y
+spatial_unit_x = "m"
+spatial_unit_y = "m"
+spatial_unit_h = "m"
 
 [bathymetry]
 type = "Flat"
@@ -29,8 +32,10 @@ positivity_preserving = true
 
 [time]
 end_time = 5.0
-time_steps = 650
+time_steps = 800
 cfl = 0.45
+time_unit = "s"
+save_every = 10        # every * step gets written out
 
 [backend]
 type = "serial"

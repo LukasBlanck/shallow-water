@@ -11,7 +11,9 @@
 
 class NetCDFWriter {
   public:
-    NetCDFWriter(const std::string &path, const Grid &grid);
+    NetCDFWriter(const std::string &path, const Grid &grid, const std::string &spatial_unit_x,
+                 const std::string &spatial_unit_y, const std::string &spatial_unit_h,
+                 const std::string &time_unit, int save_every);
 
     void write_snapshot(const State &U, double time,
                         double dt = std::numeric_limits<double>::quiet_NaN(),
@@ -37,4 +39,10 @@ class NetCDFWriter {
     std::vector<double> h_buf_, hu_buf_, hv_buf_;
 
     bool metadata_written_ = false;
+
+    std::string spatial_unit_x_;
+    std::string spatial_unit_y_;
+    std::string spatial_unit_h_;
+    std::string time_unit_;
+    int save_every_{1};
 };

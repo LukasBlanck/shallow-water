@@ -24,6 +24,9 @@ struct MeshConfig {
     int nG{};
     int Nx{};
     int Ny{};
+    std::string spatial_unit_x{};
+    std::string spatial_unit_y{};
+    std::string spatial_unit_h{};
 };
 
 struct BathymetryConfig {
@@ -58,6 +61,8 @@ struct TimeConfig {
     double end_time{};
     std::size_t time_steps{};
     double cfl{};
+    int save_every{};
+    std::string time_unit{};
 };
 
 struct BackendConfig {

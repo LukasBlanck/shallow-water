@@ -72,6 +72,12 @@ SimulationConfig load_config(const std::filesystem::path &path) {
     cfg.mesh.nG = static_cast<int>(require_value<std::int64_t>((*mesh)["nG"], "mesh.nG"));
     cfg.mesh.Nx = static_cast<int>(require_value<std::int64_t>((*mesh)["Nx"], "mesh.Nx"));
     cfg.mesh.Ny = static_cast<int>(require_value<std::int64_t>((*mesh)["Ny"], "mesh.Ny"));
+    cfg.mesh.spatial_unit_x =
+        require_value<std::string>((*mesh)["spatial_unit_x"], "mesh.spatial_unit_x");
+    cfg.mesh.spatial_unit_y =
+        require_value<std::string>((*mesh)["spatial_unit_y"], "mesh.spatial_unit_y");
+    cfg.mesh.spatial_unit_h =
+        require_value<std::string>((*mesh)["spatial_unit_h"], "mesh.spatial_unit_h");
 
     const toml::table *bathy = tbl["bathymetry"].as_table();
     if (!bathy) throw std::runtime_error("Missing or invalid [bathymetry] table");
@@ -121,6 +127,9 @@ SimulationConfig load_config(const std::filesystem::path &path) {
     cfg.time.time_steps = static_cast<std::size_t>(
         require_value<std::int64_t>((*time)["time_steps"], "time.time_steps"));
     cfg.time.cfl = require_value<double>((*time)["cfl"], "time.cfl");
+    cfg.time.save_every =
+        static_cast<int>(require_value<std::int64_t>((*time)["save_every"], "time.save_every"));
+    cfg.time.time_unit = require_value<std::string>((*time)["time_unit"], "time.time_unit");
 
     const toml::table *backend = tbl["backend"].as_table();
     if (!backend) throw std::runtime_error("Missing or invalid [backend] table");
