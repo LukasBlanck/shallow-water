@@ -153,6 +153,8 @@ SimulationConfig load_config(const std::filesystem::path &path) {
         cfg.sanity_checks.mass_conservation =
             (*sanity)["mass_conservation"].value<bool>().value_or(false);
 
+        cfg.sanity_checks.mass_threshold = require_value<double>((*sanity)["mass_threshold"], "mass_threshold");
+
         cfg.sanity_checks.positivity = (*sanity)["positivity"].value<bool>().value_or(false);
 
         cfg.sanity_checks.debug = (*sanity)["debug"].value<bool>().value_or(false);

@@ -76,6 +76,7 @@ struct OutputConfig {
 
 struct SanityCheckConfig {
     bool mass_conservation{false};
+    double mass_threshold{};
     bool positivity{false};
     bool debug{false};
     std::filesystem::path output_path;

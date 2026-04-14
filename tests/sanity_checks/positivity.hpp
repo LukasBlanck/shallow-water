@@ -15,6 +15,7 @@ class Positivity : public SanityCheck {
 
     void initialize(const State &U0, const Grid &grid) override {
         check_nonnegative(U0, grid, 0.0, 0);
+        std::cout << "INFO: Sanity check for positivity active\n";
     }
 
     void evaluate(const State &U, const Grid &grid, double time, std::size_t step,

@@ -11,7 +11,7 @@ std::vector<std::unique_ptr<SanityCheck>> make_sanity_checks(const SimulationCon
     std::vector<std::unique_ptr<SanityCheck>> checks;
 
     if (cfg.sanity_checks.mass_conservation) {
-        checks.push_back(std::make_unique<MassConservation>());
+        checks.push_back(std::make_unique<MassConservation>(cfg.sanity_checks.mass_threshold));
     }
     if (cfg.sanity_checks.positivity) {
         checks.push_back(std::make_unique<Positivity>());

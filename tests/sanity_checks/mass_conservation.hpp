@@ -10,11 +10,14 @@
 
 class MassConservation : public SanityCheck {
   public:
+
+    MassConservation(const double mass_threshold): threshold_(mass_threshold) {};
     const char *name() const override { return "MassConservation"; }
 
     void initialize(const State &U0, const Grid &grid) override {
         initial_mass_ = compute_mass(U0, grid);
         initialized_ = true;
+        std::cout << "INFO: Sanity check for mass conservation active (threshold = " << threshold_ << ")\n";
     }
 
     void evaluate(const State &U, const Grid &grid, double time, std::size_t step,
@@ -51,5 +54,5 @@ class MassConservation : public SanityCheck {
 
     double initial_mass_{0.0};
     bool initialized_{false};
-    double threshold_{1e-10};
+    double threshold_{1e-8};
 };
