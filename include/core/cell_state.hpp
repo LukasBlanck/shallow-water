@@ -42,4 +42,6 @@ inline CellState operator*(double s, const CellState &a) {
     return CellState(s * a.h(), s * a.hu(), s * a.hv());
 }
 
-inline CellState operator*(const CellState &a, double s) { return s * a; }
+inline CellState operator*(const CellState &a, double s) {
+    return s * a;
+}

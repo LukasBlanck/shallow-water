@@ -6,6 +6,10 @@
 
 #include <sstream>
 
+// compute_stable_dt
+// estimate_eta_seconds
+// format_duration
+
 inline double compute_stable_dt(const State &U, const Grid &grid, double cfl) {
     double dt_limit = std::numeric_limits<double>::max();
 
