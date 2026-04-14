@@ -29,14 +29,4 @@ class Rusanov : public RiemannSolver {
         return std::max((std::abs(u_L_B) + std::sqrt(constants::g * h_L_B)),
                         (std::abs(u_R_T) + std::sqrt(constants::g * h_R_T)));
     }
-
-    CellState F(const CellState &U) const {
-        return CellState(U.hu(), U.u() * U.u() * U.h() + 0.5 * constants::g * U.h() * U.h(),
-                         U.hu() * U.v());
-    }
-
-    CellState G(const CellState &U) const {
-        return CellState(U.hv(), U.hu() * U.v(),
-                         U.h() * U.v() * U.v() + 0.5 * constants::g * U.h() * U.h());
-    }
 };

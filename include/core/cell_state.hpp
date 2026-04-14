@@ -1,6 +1,7 @@
 #pragma once
 
 #include "include/constants.hpp"
+#include <array>
 
 class CellState {
   public:
@@ -44,4 +45,22 @@ inline CellState operator*(double s, const CellState &a) {
 
 inline CellState operator*(const CellState &a, double s) {
     return s * a;
+}
+
+inline CellState operator/(const CellState &a, double s) {
+    return CellState(a.h() / s, a.hu() / s, a.hv() / s);
+}
+
+// vector operators for ROE
+inline std::array<double, 3> operator*(double a, const std::array<double, 3> &s) {
+    return std::array<double, 3>{s[0] * a, s[1] * a, s[2] * a};
+}
+
+inline std::array<double, 3> operator+(const std::array<double, 3> &a,
+                                       const std::array<double, 3> &s) {
+    return std::array<double, 3>{s[0] + a[0], s[1] + a[1], s[2] + a[2]};
+}
+
+inline CellState operator-(const CellState &a, const std::array<double, 3> &s) {
+    return CellState(a.h() - s[0], a.hu() - s[1], a.hv() - s[2]);
 }

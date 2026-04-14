@@ -12,9 +12,9 @@ enum class BathymetryType { Flat };
 
 enum class InitialConditionType { GaussInitial, StillWater };
 
-enum class ReconstructionType { PiecewiseConst };
+enum class ReconstructionType { PiecewiseConst, MUSCL };
 
-enum class RiemannType { Rusanov };
+enum class RiemannType { Rusanov, HLL, ROE };
 
 enum class TimeIntegratorType { SSPRK3 };
 

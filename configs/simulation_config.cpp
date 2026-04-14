@@ -20,11 +20,14 @@ BoundaryType parse_boundary_type(const std::string &s) {
 
 ReconstructionType parse_reconstruction_type(const std::string &s) {
     if (s == "PiecewiseConst") return ReconstructionType::PiecewiseConst;
+    if (s == "MUSCL") return ReconstructionType::MUSCL;
     throw std::runtime_error("Unknown reconstruction type: " + s);
 }
 
 RiemannType parse_riemann_type(const std::string &s) {
     if (s == "Rusanov") return RiemannType::Rusanov;
+    if (s == "HLL") return RiemannType::HLL;
+    if (s == "ROE") return RiemannType::ROE;
     throw std::runtime_error("Unknown riemann solver: " + s);
 }
 

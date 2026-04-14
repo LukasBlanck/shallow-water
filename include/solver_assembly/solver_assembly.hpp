@@ -1,6 +1,10 @@
 #pragma once
 
 #include "configs/simulation_config.hpp"
+#include "include/backend/serial/reconstruction/muscl.hpp"
+#include "include/backend/serial/reconstruction/piecewise_const.hpp"
+#include "include/backend/serial/riemann/HLL.hpp"
+#include "include/backend/serial/riemann/ROE.hpp"
 #include "include/backend/serial/serial_solver.hpp"
 #include "include/boundary/reflecting_walls.hpp"
 
@@ -21,6 +25,55 @@ class SolverAssembly {
                 cfg_.solver.time == TimeIntegratorType::SSPRK3) {
 
                 SerialSolver<ReflectingWalls, PiecewiseConst, Rusanov, SSPRK3> solver(cfg_);
+                solver.run();
+                return;
+            }
+
+            if (cfg_.boundary.type == BoundaryType::ReflectingWalls &&
+                cfg_.solver.reconstruction == ReconstructionType::MUSCL &&
+                cfg_.solver.riemann == RiemannType::Rusanov &&
+                cfg_.solver.time == TimeIntegratorType::SSPRK3) {
+
+                SerialSolver<ReflectingWalls, MUSCL, Rusanov, SSPRK3> solver(cfg_);
+                solver.run();
+                return;
+            }
+
+            if (cfg_.boundary.type == BoundaryType::ReflectingWalls &&
+                cfg_.solver.reconstruction == ReconstructionType::MUSCL &&
+                cfg_.solver.riemann == RiemannType::HLL &&
+                cfg_.solver.time == TimeIntegratorType::SSPRK3) {
+
+                SerialSolver<ReflectingWalls, MUSCL, HLL, SSPRK3> solver(cfg_);
+                solver.run();
+                return;
+            }
+
+            if (cfg_.boundary.type == BoundaryType::ReflectingWalls &&
+                cfg_.solver.reconstruction == ReconstructionType::PiecewiseConst &&
+                cfg_.solver.riemann == RiemannType::HLL &&
+                cfg_.solver.time == TimeIntegratorType::SSPRK3) {
+
+                SerialSolver<ReflectingWalls, PiecewiseConst, HLL, SSPRK3> solver(cfg_);
+                solver.run();
+                return;
+            }
+            // ROE + PiecewiseConst
+            if (cfg_.boundary.type == BoundaryType::ReflectingWalls &&
+                cfg_.solver.reconstruction == ReconstructionType::PiecewiseConst &&
+                cfg_.solver.riemann == RiemannType::ROE &&
+                cfg_.solver.time == TimeIntegratorType::SSPRK3) {
+
+                SerialSolver<ReflectingWalls, PiecewiseConst, ROE, SSPRK3> solver(cfg_);
+                solver.run();
+                return;
+            } // ROE + MUSCL
+            if (cfg_.boundary.type == BoundaryType::ReflectingWalls &&
+                cfg_.solver.reconstruction == ReconstructionType::MUSCL &&
+                cfg_.solver.riemann == RiemannType::ROE &&
+                cfg_.solver.time == TimeIntegratorType::SSPRK3) {
+
+                SerialSolver<ReflectingWalls, PiecewiseConst, ROE, SSPRK3> solver(cfg_);
                 solver.run();
                 return;
             }

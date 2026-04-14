@@ -4,7 +4,10 @@
 
 #include "include/backend/serial/finite_volume/finite_volume.hpp"
 #include "include/backend/serial/flux_assembly/flux_assembly.hpp"
+#include "include/backend/serial/reconstruction/muscl.hpp"
 #include "include/backend/serial/reconstruction/piecewise_const.hpp"
+#include "include/backend/serial/riemann/HLL.hpp"
+#include "include/backend/serial/riemann/ROE.hpp"
 #include "include/backend/serial/riemann/rusanov.hpp"
 #include "include/backend/serial/ssp_rk3/ssp_rk3.hpp"
 #include "include/core/grid.hpp"
@@ -149,12 +152,21 @@ class SerialSolver {
         if constexpr (std::is_same_v<Riemann, Rusanov>) {
             return "Rusanov";
         }
+        if constexpr (std::is_same_v<Riemann, HLL>) {
+            return "HLL";
+        }
+        if constexpr (std::is_same_v<Riemann, ROE>) {
+            return "ROE";
+        }
         return "UnknownRiemann";
     }
 
     static std::string reconstruction_name_static() {
         if constexpr (std::is_same_v<Reconstruction, PiecewiseConst>) {
             return "PiecewiseConst";
+        }
+        if constexpr (std::is_same_v<Reconstruction, MUSCL>) {
+            return "MUSCL";
         }
         return "UnknownReconstruction";
     }

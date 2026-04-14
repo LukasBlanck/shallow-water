@@ -1,7 +1,7 @@
 [mesh]
 Lx = 10         # domain length in x
 Ly = 10         # domain length in y
-nG = 1          # number of ghost cells
+nG = 2          # number of ghost cells
 Nx = 50         # spatial resolution in x
 Ny = 50         # spatial resolution in y
 spatial_unit_x = "m"
@@ -24,8 +24,8 @@ sigma_y = 0.7
 h0 = 2.0        # for GaussInitial OR StillWater
 
 [solver]
-reconstruction = "PiecewiseConst"
-riemann = "Rusanov"
+reconstruction = "PiecewiseConst"       # [PiecewiseConst, MUSCL]
+riemann = "HLL"                     # [Rusanov, HLL, ROE]
 time = "SSPRK3"
 limiter = "minmod"
 positivity_preserving = true
@@ -49,5 +49,5 @@ debug = true                    # only this will print into output_path
 output_path = "output/sanity_checks.nc"
 
 [output]
-compute_eta = false              # estimates ETA (based on first 100 time steps)
+compute_eta = true              # estimates ETA (based on first 100 time steps)
 path = "output/simulation.nc"
