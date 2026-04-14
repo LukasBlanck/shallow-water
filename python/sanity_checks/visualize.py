@@ -11,6 +11,11 @@ USE_LOG_SCALE_FOR_ERRORS = True
 SAVE_PLOTS = False
 OUTPUT_PATH = "output/sanity_checks_plots.png"
 
+# ---------------- CLI printing options ----------------
+PRINT_DATASET_SUMMARY_TO_CLI = False
+PRINT_SERIES_TO_CLI = True
+CLI_SERIES_TO_PRINT = "h_min"   # choose: "h_min" or "mass_rel_err"
+
 
 def get_bool_attr(ds, name, default=False):
     value = ds.attrs.get(name, int(default))
@@ -24,6 +29,52 @@ def get_bool_attr(ds, name, default=False):
 
 
 ds = xr.open_dataset(FILE_PATH, engine="netcdf4")
+
+# ---------------- Optional dataset summary ----------------
+if PRINT_DATASET_SUMMARY_TO_CLI:
+    print("\n===== NetCDF file contents =====")
+    print(ds)
+    print("================================\n")
+
+# ---------------- Optional explicit series output ----------------
+if PRINT_SERIES_TO_CLI:
+    allowed_series = {"h_min", "mass_rel_err"}
+    if CLI_SERIES_TO_PRINT not in allowed_series:
+        raise ValueError(
+            f"CLI_SERIES_TO_PRINT must be one of {allowed_series}, got '{CLI_SERIES_TO_PRINT}'"
+        )
+
+    if CLI_SERIES_TO_PRINT not in ds:
+        raise RuntimeError(f"Variable '{CLI_SERIES_TO_PRINT}' not found in {FILE_PATH}")
+
+    t = ds["time"].values if "time" in ds else None
+    values = ds[CLI_SERIES_TO_PRINT].values
+    steps = ds["step"].values if "step" in ds else None
+    unit = ds[CLI_SERIES_TO_PRINT].attrs.get("units", "not specified")
+    print("\n===== NetCDF file contents =====")
+    print(ds)
+    print("================================\n")
+    
+    print(f"\n===== Explicit CLI output: {CLI_SERIES_TO_PRINT} =====")
+    print(f"unit = {unit}")
+
+    if t is not None and steps is not None:
+        print(f"{'idx':>5} {'step':>10} {'time':>15} {'value':>20}")
+        print("-" * 56)
+        for i, (s, ti, val) in enumerate(zip(steps, t, values)):
+            print(f"{i:5d} {int(s):10d} {ti:15.8f} {val:20.12e}")
+    elif t is not None:
+        print(f"{'idx':>5} {'time':>15} {'value':>20}")
+        print("-" * 44)
+        for i, (ti, val) in enumerate(zip(t, values)):
+            print(f"{i:5d} {ti:15.8f} {val:20.12e}")
+    else:
+        print(f"{'idx':>5} {'value':>20}")
+        print("-" * 28)
+        for i, val in enumerate(values):
+            print(f"{i:5d} {val:20.12e}")
+
+    print("=" * 56 + "\n")
 
 # ---------------- Read shared metadata ----------------
 time_unit = ds["time"].attrs.get("units", "not specified") if "time" in ds else "not specified"
