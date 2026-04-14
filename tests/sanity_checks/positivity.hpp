@@ -18,7 +18,7 @@ class Positivity : public SanityCheck {
     }
 
     void evaluate(const State &U, const Grid &grid, double time, std::size_t step,
-                  SanityCheckNetCDFWriter & /*writer*/) override {
+                  SanityCheckNetCDFWriter *writer) override {
         check_nonnegative(U, grid, time, step);
     }
 

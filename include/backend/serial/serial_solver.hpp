@@ -18,7 +18,9 @@
 #include "tests/sanity_checks/sanity_checks.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
+#include <limits>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -144,30 +146,26 @@ class SerialSolver {
     }
 
     void run_sanity_checks(double time, std::size_t step) {
-        if (!sanity_writer_) {
-            return;
-        }
-
         for (auto &check : sanity_checks_) {
-            check->evaluate(U_, grid_, time, step, *sanity_writer_);
+            check->evaluate(U_, grid_, time, step, sanity_writer_.get());
         }
     }
 
     static std::unique_ptr<SanityCheckNetCDFWriter>
     make_sanity_writer(const SimulationConfig &cfg, double dt, const std::string &riemann_solver,
                        const std::string &reconstruction, const std::string &time_integrator) {
-        if (!cfg.sanity_checks.mass_conservation) {
+
+        if (!cfg.sanity_checks.debug) {
             return nullptr;
         }
-
         if (cfg.sanity_checks.output_path.empty()) {
             throw std::runtime_error(
-                "sanity_checks.output_path must be set if sanity checks are enabled");
+                "sanity_checks.output_path must be set if debug mode is enabled");
         }
 
         return std::make_unique<SanityCheckNetCDFWriter>(
-            cfg.sanity_checks.output_path.string(), cfg.time.time_unit, cfg.time.save_every, dt,
-            riemann_solver, reconstruction, time_integrator);
+            cfg.sanity_checks.output_path.string(), cfg.time.time_unit, cfg.mesh.spatial_unit_h,
+            cfg.time.save_every, dt, riemann_solver, reconstruction, time_integrator);
     }
 
     static std::string riemann_name_static() {

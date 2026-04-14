@@ -42,8 +42,9 @@ type = "serial"
 threads = 2
 
 [sanity_checks]
-mass_conservation = true        # [true, false]
+mass_conservation = true        # [true, false] -> throws runtime errors and exits programs | default threshold: 1e-10
 positivity = true
+debug = true                    # only this will print into output_path
 output_path = "output/sanity_checks.nc"
 
 [output]

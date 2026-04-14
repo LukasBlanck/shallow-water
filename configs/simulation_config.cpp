@@ -155,6 +155,8 @@ SimulationConfig load_config(const std::filesystem::path &path) {
 
         cfg.sanity_checks.positivity = (*sanity)["positivity"].value<bool>().value_or(false);
 
+        cfg.sanity_checks.debug = (*sanity)["debug"].value<bool>().value_or(false);
+
         cfg.sanity_checks.output_path =
             require_value<std::string>((*sanity)["output_path"], "output_path");
     }

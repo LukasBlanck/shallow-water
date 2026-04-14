@@ -1,10 +1,15 @@
+import os
 import xarray as xr
 import matplotlib.pyplot as plt
 import numpy as np
 
 FILE_PATH = "output/sanity_checks.nc"
+
 SHOW_INFO_BOX = True
 USE_LOG_SCALE_FOR_ERRORS = True
+
+SAVE_PLOTS = False
+OUTPUT_PATH = "output/sanity_checks_plots.png"
 
 
 def get_bool_attr(ds, name, default=False):
@@ -22,6 +27,8 @@ ds = xr.open_dataset(FILE_PATH, engine="netcdf4")
 
 # ---------------- Read shared metadata ----------------
 time_unit = ds["time"].attrs.get("units", "not specified") if "time" in ds else "not specified"
+h_unit = ds["h_min"].attrs.get("units", "not specified") if "h_min" in ds else "not specified"
+
 dt_used = ds.attrs.get("dt", None)
 riemann_solver = ds.attrs.get("riemann_solver", "not specified")
 reconstruction = ds.attrs.get("reconstruction", "not specified")
@@ -29,7 +36,7 @@ time_integrator = ds.attrs.get("time_integrator", "not specified")
 save_every = ds.attrs.get("save_every", "not specified")
 
 mass_conservation_enabled = get_bool_attr(ds, "mass_conservation_enabled", False)
-convergence_enabled = get_bool_attr(ds, "convergence_enabled", False)
+positivity_enabled = get_bool_attr(ds, "positivity_enabled", False)
 
 # ---------------- Decide what to plot ----------------
 available_plots = []
@@ -37,19 +44,40 @@ available_plots = []
 if mass_conservation_enabled and "mass_rel_err" in ds and "time" in ds:
     available_plots.append("mass_conservation")
 
-if convergence_enabled:
-    # adapt these variable names to your actual convergence writer once implemented
-    if "convergence_err" in ds and "time" in ds:
-        available_plots.append("convergence")
+if positivity_enabled and "h_min" in ds and "time" in ds:
+    available_plots.append("positivity")
 
 if not available_plots:
-    raise RuntimeError(
-        "No supported sanity-check data found in output/sanity_checks.nc"
+    raise RuntimeError(f"No supported sanity-check data found in {FILE_PATH}")
+
+info_lines = [
+    f"dt = {dt_used:.6g} {time_unit}" if dt_used is not None else "dt = n/a",
+    f"save_every = {save_every}",
+    f"Riemann: {riemann_solver}",
+    f"Recon: {reconstruction}",
+    f"Time int.: {time_integrator}",
+]
+info_text = "\n".join(info_lines)
+
+# ---------------- Create figure with dedicated info subplot ----------------
+nplots = len(available_plots)
+fig = plt.figure(figsize=(9, 1.8 + 5 * nplots))
+gs = fig.add_gridspec(nplots + 1, 1, height_ratios=[1.2] + [5] * nplots)
+
+info_ax = fig.add_subplot(gs[0])
+info_ax.axis("off")
+
+if SHOW_INFO_BOX:
+    info_ax.text(
+        0.01,
+        0.95,
+        info_text,
+        ha="left",
+        va="top",
+        bbox=dict(boxstyle="round", facecolor="white", alpha=0.85),
     )
 
-nplots = len(available_plots)
-fig, axes = plt.subplots(nplots, 1, figsize=(9, 5 * nplots), squeeze=False)
-axes = axes.ravel()
+axes = [fig.add_subplot(gs[i + 1]) for i in range(nplots)]
 
 for ax, plot_kind in zip(axes, available_plots):
     if plot_kind == "mass_conservation":
@@ -66,52 +94,24 @@ for ax, plot_kind in zip(axes, available_plots):
         ax.set_title("Mass conservation")
         ax.grid(True, which="both", alpha=0.3)
 
-        if SHOW_INFO_BOX:
-            info_text = "\n".join([
-                f"dt = {dt_used:.6g} {time_unit}" if dt_used is not None else "dt = n/a",
-                f"Riemann: {riemann_solver}",
-                f"Recon: {reconstruction}",
-                f"Time int.: {time_integrator}",
-            ])
-
-            ax.text(
-                0.02, 0.98, info_text,
-                transform=ax.transAxes,
-                va="top",
-                ha="left",
-                bbox=dict(boxstyle="round", facecolor="white", alpha=0.85)
-            )
-
-    elif plot_kind == "convergence":
+    elif plot_kind == "positivity":
         t = ds["time"].values
-        conv_err = ds["convergence_err"].values
-        conv_unit = ds["convergence_err"].attrs.get("units", "1")
+        h_min = ds["h_min"].values
 
-        if USE_LOG_SCALE_FOR_ERRORS:
-            ax.semilogy(t, conv_err, marker="o", linewidth=1.5, markersize=4)
-        else:
-            ax.plot(t, conv_err, marker="o", linewidth=1.5, markersize=4)
+        ax.plot(t, h_min, marker="o", linewidth=1.5, markersize=4)
 
         ax.set_xlabel(f"time [{time_unit}]".strip())
-        ax.set_ylabel(f"convergence error [{conv_unit}]".strip())
-        ax.set_title("Convergence")
+        ax.set_ylabel(f"h_min [{h_unit}]".strip())
+        ax.set_title("Minimum water height")
         ax.grid(True, which="both", alpha=0.3)
 
-        if SHOW_INFO_BOX:
-            info_text = "\n".join([
-                f"dt = {dt_used:.6g} {time_unit}" if dt_used is not None else "dt = n/a",
-                f"Riemann: {riemann_solver}",
-                f"Recon: {reconstruction}",
-                f"Time int.: {time_integrator}",
-            ])
-
-            ax.text(
-                0.02, 0.98, info_text,
-                transform=ax.transAxes,
-                va="top",
-                ha="left",
-                bbox=dict(boxstyle="round", facecolor="white", alpha=0.85)
-            )
-
 plt.tight_layout()
+
+if SAVE_PLOTS:
+    output_dir = os.path.dirname(OUTPUT_PATH)
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
+    fig.savefig(OUTPUT_PATH, dpi=300, bbox_inches="tight")
+    print(f"Saved plot to: {OUTPUT_PATH}")
+
 plt.show()

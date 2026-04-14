@@ -18,7 +18,7 @@ class MassConservation : public SanityCheck {
     }
 
     void evaluate(const State &U, const Grid &grid, double time, std::size_t step,
-                  SanityCheckNetCDFWriter &writer) override {
+                  SanityCheckNetCDFWriter *writer) override {
         if (!initialized_) {
             initialize(U, grid);
         }
@@ -28,7 +28,11 @@ class MassConservation : public SanityCheck {
         const double rel_err =
             (std::abs(initial_mass_) > 0.0) ? abs_err / std::abs(initial_mass_) : abs_err;
 
-        writer.write_mass_conservation(step, time, mass, abs_err, rel_err);
+        if (rel_err > threshold_) {
+            throw std::runtime_error("Mass conservation check failed: diverging rel mass err = " +
+                                     std::to_string(rel_err) + " at step = " +
+                                     std::to_string(step) + ", time = " + std::to_string(time));
+        }
     }
 
   private:
@@ -47,4 +51,5 @@ class MassConservation : public SanityCheck {
 
     double initial_mass_{0.0};
     bool initialized_{false};
+    double threshold_{1e-10};
 };

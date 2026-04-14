@@ -16,7 +16,7 @@ class SanityCheck {
     virtual const char *name() const = 0;
     virtual void initialize(const State &U0, const Grid &grid) = 0;
     virtual void evaluate(const State &U, const Grid &grid, double time, std::size_t step,
-                          SanityCheckNetCDFWriter &writer) = 0;
+                          SanityCheckNetCDFWriter *writer) = 0;
 };
 
 std::vector<std::unique_ptr<SanityCheck>> make_sanity_checks(const SimulationConfig &cfg);
