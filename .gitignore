@@ -9,6 +9,7 @@ literature
 # Simulation output
 *.mp4
 *.nc
+*.png
 
 # Personal release log
 docs/v*
