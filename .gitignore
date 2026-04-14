@@ -5,6 +5,7 @@ build
 venv
 .cache
 literature
+.clang-tidy
 
 # Simulation output
 *.mp4
