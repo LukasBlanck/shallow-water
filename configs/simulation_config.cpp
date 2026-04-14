@@ -41,6 +41,10 @@ InitialConditionType parse_initial_condition_type(const std::string &s) {
         return InitialConditionType::GaussInitial;
     else if (s == "StillWater")
         return InitialConditionType::StillWater;
+    else if (s == "DamBreak")
+        return InitialConditionType::DamBreak;
+    else if (s == "DamBreakRadial")
+        return InitialConditionType::DamBreakRadial;
     throw std::runtime_error("Unknown initial condition: " + s);
 }
 
@@ -113,6 +117,15 @@ SimulationConfig load_config(const std::filesystem::path &path) {
     cfg.initial_condition.sigma_y =
         require_value<double>((*ic)["sigma_y"], "initial_condition.sigma_y");
     cfg.initial_condition.h0 = require_value<double>((*ic)["h0"], "initial_condition.h0");
+    cfg.initial_condition.dam_height =
+        require_value<double>((*ic)["dam_height"], "initial_condition.dam_height");
+    cfg.initial_condition.dam_x = require_value<double>((*ic)["dam_x"], "initial_condition.dam_x");
+    cfg.initial_condition.dam_x0 =
+        require_value<double>((*ic)["dam_x0"], "initial_condition.dam_x0");
+    cfg.initial_condition.dam_y0 =
+        require_value<double>((*ic)["dam_y0"], "initial_condition.dam_y0");
+    cfg.initial_condition.dam_radius =
+        require_value<double>((*ic)["dam_radius"], "initial_condition.dam_radius");
 
     const toml::table *solver = tbl["solver"].as_table();
     if (!solver) throw std::runtime_error("Missing or invalid [solver] table");

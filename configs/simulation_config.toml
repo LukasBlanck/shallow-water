@@ -15,16 +15,23 @@ type = "Flat"
 type = "ReflectingWalls"
 
 [initial_condition]
-type = "GaussInitial"       # [GaussInitial, StillWater]
-peak_height = 3.0
-x0 = 3.0
-y0 = 7.0
-sigma_x = 2
-sigma_y = 0.7
-h0 = 2.0        # for GaussInitial OR StillWater
+type = "GaussInitial"       # [GaussInitial, StillWater, DamBreak, DamBreakRadial]
+peak_height = 5.0               # GaussInitial
+x0 = 8.5                        # GaussInitial
+y0 = 7.0                        # GaussInitial
+sigma_x = 2                     # GaussInitial
+sigma_y = 0.7                   # GaussInitial
+h0 = 0.0                        # for GaussInitial OR StillWater OR DamBreak OR DamBreakRadial
+dam_height = 5.0                # DamBreak OR DamBreakRadial
+dam_x = 8.5                     # DamBreak
+dam_x0 = 8.0                    # DamBreakRadial
+dam_y0 = 8.0                    # DamBreakRadial
+dam_radius = 3.0                # DamBreakRadial
+
+
 
 [solver]
-reconstruction = "PiecewiseConst"       # [PiecewiseConst, MUSCL]
+reconstruction = "MUSCL"       # [PiecewiseConst, MUSCL]
 riemann = "HLL"                     # [Rusanov, HLL, ROE]
 time = "SSPRK3"
 limiter = "minmod"

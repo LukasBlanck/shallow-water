@@ -10,7 +10,7 @@ enum class BoundaryType { ReflectingWalls };
 
 enum class BathymetryType { Flat };
 
-enum class InitialConditionType { GaussInitial, StillWater };
+enum class InitialConditionType { GaussInitial, StillWater, DamBreak, DamBreakRadial };
 
 enum class ReconstructionType { PiecewiseConst, MUSCL };
 
@@ -46,6 +46,11 @@ struct InitialConditionConfig {
     double sigma_x{};
     double sigma_y{};
     double h0{};
+    double dam_height{};
+    double dam_x{};
+    double dam_x0{};
+    double dam_y0{};
+    double dam_radius{};
 };
 
 struct SolverConfig {

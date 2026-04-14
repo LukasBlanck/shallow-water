@@ -73,7 +73,7 @@ class SolverAssembly {
                 cfg_.solver.riemann == RiemannType::ROE &&
                 cfg_.solver.time == TimeIntegratorType::SSPRK3) {
 
-                SerialSolver<ReflectingWalls, PiecewiseConst, ROE, SSPRK3> solver(cfg_);
+                SerialSolver<ReflectingWalls, MUSCL, ROE, SSPRK3> solver(cfg_);
                 solver.run();
                 return;
             }

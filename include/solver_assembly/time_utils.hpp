@@ -19,7 +19,7 @@ inline double compute_stable_dt(const State &U, const Grid &grid, double cfl) {
             const double hu = U.hu()(i, j);
             const double hv = U.hv()(i, j);
 
-            if (h <= 0.0) {
+            if (h < 0.0) {
                 throw std::runtime_error(
                     "Could not perform stability check for dt because h <= 0!");
             }
