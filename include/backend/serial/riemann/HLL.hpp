@@ -23,8 +23,8 @@ class HLL : public RiemannSolver {
         }
     }
     CellState y_flux(const CellState &U_B, const CellState &U_T) const override {
-        double sT = dissipation_speed_RT(U_B.u(), U_B.h(), U_T.u(), U_T.h());
-        double sB = dissipation_speed_LB(U_B.u(), U_B.h(), U_T.u(), U_T.h());
+        double sT = dissipation_speed_RT(U_B.v(), U_B.h(), U_T.v(), U_T.h());
+        double sB = dissipation_speed_LB(U_B.v(), U_B.h(), U_T.v(), U_T.h());
 
         if (sB >= 0.0) {
             return G(U_B);
@@ -42,6 +42,6 @@ class HLL : public RiemannSolver {
         return std::min(uLB - std::sqrt(constants::g * hLB), uRT - std::sqrt(constants::g * hRT));
     }
     double dissipation_speed_RT(double uLB, double hLB, double uRT, double hRT) const {
-        return std::min(uLB + std::sqrt(constants::g * hLB), uRT + std::sqrt(constants::g * hRT));
+        return std::max(uLB + std::sqrt(constants::g * hLB), uRT + std::sqrt(constants::g * hRT));
     }
 };
