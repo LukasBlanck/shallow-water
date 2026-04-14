@@ -94,12 +94,16 @@ class SerialSolver {
             const std::size_t step_number = step + 1;
 
             // ETA
-            const double elapsed_sec =
-                std::chrono::duration<double>(std::chrono::steady_clock::now() - start_wall)
-                    .count();
 
-            const double eta_sec = estimate_eta_seconds(step_number, steps_, elapsed_sec);
-            std::cout << "ETA = " << format_duration(eta_sec) << '\n';
+            if (estimate_eta && !eta_printed && step_number == eta_probe_step) {
+                const auto now = std::chrono::steady_clock::now();
+                const double elapsed_sec = std::chrono::duration<double>(now - start_wall).count();
+
+                const double eta_sec = estimate_eta_seconds(step_number, steps_, elapsed_sec);
+
+                std::cout << "ETA = " << format_duration(eta_sec) << '\n';
+                eta_printed = true;
+            }
 
             // output & sanity checks
             if (step_number % save_every_ == 0 || step_number == steps_) {
