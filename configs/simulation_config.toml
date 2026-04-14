@@ -42,11 +42,12 @@ type = "serial"
 threads = 2
 
 [sanity_checks]
-mass_conservation = true        # [true, false] -> throws runtime errors and exits programs | default threshold: 1e-10
+mass_conservation = false        # [true, false] -> throws runtime errors and exits programs | default threshold: 1e-10
 mass_threshold = 1e-13
 positivity = true
 debug = true                    # only this will print into output_path
 output_path = "output/sanity_checks.nc"
 
 [output]
+compute_eta = false              # estimates ETA (based on first 100 time steps)
 path = "output/simulation.nc"

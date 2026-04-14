@@ -24,13 +24,17 @@ int main() {
         std::cerr << "\nSimulation failed: " << e.what() << "\n";
         return EXIT_FAILURE;
     }
-    printf("\n\n\n                             ==============================================================\n");
-    printf("                             |                                                            |\n");
-    printf("                             |                Simulation run successfully!                |\n");
-    printf("                             |                                                            |\n");
-    printf("                             ==============================================================\n\n\n\n\n");
+    printf("\n\n\n                             "
+           "==============================================================\n");
+    printf("                             |                                                         "
+           "   |\n");
+    printf("                             |                Simulation run successfully!             "
+           "   |\n");
+    printf("                             |                                                         "
+           "   |\n");
+    printf("                             "
+           "==============================================================\n\n\n\n\n");
     return EXIT_SUCCESS;
-    
 
     return 0;
 }

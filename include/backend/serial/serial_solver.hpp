@@ -11,16 +11,16 @@
 #include "include/core/state.hpp"
 #include "include/core/xflux_field.hpp"
 #include "include/core/yflux_field.hpp"
-#include "include/initial_condition/gauss_initial.hpp"
-#include "include/initial_condition/still_water.hpp"
+#include "include/initial_condition/apply_initial_condition.hpp"
 #include "include/io/netCDF_writer.hpp"
 #include "include/io/sanity_checks_netdcdf_writer.hpp"
+#include "include/solver_assembly/time_utils.hpp"
 #include "tests/sanity_checks/sanity_checks.hpp"
 
 #include <algorithm>
-#include <cmath>
+#include <chrono>
 #include <cstddef>
-#include <limits>
+#include <iostream>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -46,7 +46,7 @@ class SerialSolver {
                                             time_integrator_name_static())),
           riemann_name_(riemann_name_static()), reconstruction_name_(reconstruction_name_static()),
           time_integrator_name_(time_integrator_name_static()) {
-        apply_initial_condition();
+        apply_initial_condition(cfg_, grid_, U_);
         bc_.apply_BC(U_);
 
         for (auto &check : sanity_checks_) {
@@ -55,8 +55,8 @@ class SerialSolver {
     }
 
     void run() {
-        const double dt_stable = compute_stable_dt(U_);
-
+        // check if dt is stable
+        const double dt_stable = compute_stable_dt(U_, grid_, cfg_.time.cfl);
         if (dt_ > dt_stable) {
             throw std::runtime_error("Time step too large: dt = " + std::to_string(dt_) +
                                      ", but CFL requires dt <= " + std::to_string(dt_stable));
@@ -64,10 +64,18 @@ class SerialSolver {
 
         double time = 0.0;
 
+        // ETA
+        const bool estimate_eta = cfg_.output.compute_eta;
+        const std::size_t eta_probe_step = std::min<std::size_t>(100, steps_);
+        bool eta_printed = false;
+        const auto start_wall = std::chrono::steady_clock::now();
+
+        // output and sanity check for initial setup
         writer_.write_snapshot(U_, time, dt_, riemann_name_, reconstruction_name_,
                                time_integrator_name_);
         run_sanity_checks(time, 0);
 
+        // SSP-RK3
         for (std::size_t step = 0; step < steps_; ++step) {
             compute_rhs(U_, rhs_);
             time_integrator_.compute_U1(U1_, U_, rhs_);
@@ -84,6 +92,16 @@ class SerialSolver {
             bc_.apply_BC(U_);
 
             const std::size_t step_number = step + 1;
+
+            // ETA
+            const double elapsed_sec =
+                std::chrono::duration<double>(std::chrono::steady_clock::now() - start_wall)
+                    .count();
+
+            const double eta_sec = estimate_eta_seconds(step_number, steps_, elapsed_sec);
+            std::cout << "ETA = " << format_duration(eta_sec) << '\n';
+
+            // output & sanity checks
             if (step_number % save_every_ == 0 || step_number == steps_) {
                 writer_.write_snapshot(U_, time);
                 run_sanity_checks(time, step_number);
@@ -92,57 +110,12 @@ class SerialSolver {
     }
 
   private:
+    // serial helper functions
     void compute_rhs(State &U_in, State &L_out) {
         bc_.apply_BC(U_in);
         flux_assembly_.compute_x_fluxes(U_in, recon_, riemann_, x_flux_field_, grid_);
         flux_assembly_.compute_y_fluxes(U_in, recon_, riemann_, y_flux_field_, grid_);
         fv_.apply_spatial_operator(L_out, x_flux_field_, y_flux_field_);
-    }
-
-    void apply_initial_condition() {
-        switch (cfg_.initial_condition.type) {
-        case InitialConditionType::GaussInitial: {
-            GaussInitial ic(cfg_.initial_condition.peak_height, cfg_.initial_condition.sigma_x,
-                            cfg_.initial_condition.sigma_y, cfg_.initial_condition.x0,
-                            cfg_.initial_condition.y0, cfg_.initial_condition.h0);
-            ic.apply(grid_, U_);
-            return;
-        }
-        case InitialConditionType::StillWater: {
-            StillWater ic(cfg_.initial_condition.h0);
-            ic.apply(grid_, U_);
-            return;
-        }
-        }
-        throw std::runtime_error("Unsupported initial condition");
-    }
-
-    double compute_stable_dt(const State &U) const {
-        double dt_limit = std::numeric_limits<double>::max();
-
-        for (int i = grid_.nG(); i < grid_.nG() + grid_.Nx(); ++i) {
-            for (int j = grid_.nG(); j < grid_.nG() + grid_.Ny(); ++j) {
-                const double h = U.h()(i, j);
-                const double hu = U.hu()(i, j);
-                const double hv = U.hv()(i, j);
-
-                if (h <= 0.0) {
-                    throw std::runtime_error(
-                        "Could not perform stability check for dt because h <= 0!");
-                }
-
-                const double u = hu / h;
-                const double v = hv / h;
-
-                const double dt_cell =
-                    cfg_.time.cfl / ((std::abs(u) + std::sqrt(constants::g * h)) / grid_.dx() +
-                                     (std::abs(v) + std::sqrt(constants::g * h)) / grid_.dy());
-
-                dt_limit = std::min(dt_limit, dt_cell);
-            }
-        }
-
-        return dt_limit;
     }
 
     void run_sanity_checks(double time, std::size_t step) {

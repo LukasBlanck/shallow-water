@@ -2,17 +2,12 @@
 
 #include "netcdf"
 
-
 class SanityCheckNetCDFWriter {
   public:
-    SanityCheckNetCDFWriter(const std::string &path,
-                           const std::string &time_unit,
-                           const std::string &h_unit,
-                           int save_every,
-                           double dt,
-                           const std::string &riemann_solver,
-                           const std::string &reconstruction,
-                           const std::string &time_integrator);
+    SanityCheckNetCDFWriter(const std::string &path, const std::string &time_unit,
+                            const std::string &h_unit, int save_every, double dt,
+                            const std::string &riemann_solver, const std::string &reconstruction,
+                            const std::string &time_integrator);
 
     void write(std::size_t step, double time, double rel_err, double h_min);
 
@@ -37,5 +32,4 @@ class SanityCheckNetCDFWriter {
     netCDF::NcVar h_min_var_;
 
     std::size_t next_record_{0};
-
 };

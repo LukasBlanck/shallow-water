@@ -72,6 +72,7 @@ struct BackendConfig {
 
 struct OutputConfig {
     std::filesystem::path path;
+    bool compute_eta{};
 };
 
 struct SanityCheckConfig {

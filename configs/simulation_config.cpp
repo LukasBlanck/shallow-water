@@ -147,13 +147,15 @@ SimulationConfig load_config(const std::filesystem::path &path) {
     if (!output) throw std::runtime_error("Missing or invalid [output] table");
 
     cfg.output.path = require_value<std::string>((*output)["path"], "output.path");
+    cfg.output.compute_eta = (*output)["compute_eta"].value<bool>().value_or(false);
 
     const toml::table *sanity = tbl["sanity_checks"].as_table();
     if (sanity) {
         cfg.sanity_checks.mass_conservation =
             (*sanity)["mass_conservation"].value<bool>().value_or(false);
 
-        cfg.sanity_checks.mass_threshold = require_value<double>((*sanity)["mass_threshold"], "mass_threshold");
+        cfg.sanity_checks.mass_threshold =
+            require_value<double>((*sanity)["mass_threshold"], "mass_threshold");
 
         cfg.sanity_checks.positivity = (*sanity)["positivity"].value<bool>().value_or(false);
 
