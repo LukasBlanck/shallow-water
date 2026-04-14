@@ -19,23 +19,27 @@ Current / planned project scope:
 - [x] Modular parameter/solver choosing via .toml input
 - [x] Python visualization
 - [x] SanityChecks::Positivity
-- [x] SanotyChecks::Mass_conservation
+- [x] SanityChecks::Mass_conservation
+- [x] Debug output
 ---
 - [x] Reconstruction::PiecewiseConst 
-- [ ] Reconstruction::MUSCL
+- [x] Reconstruction::MUSCL
 - [x] Riemann::Rusanov
-- [ ] Riemann::HLL
-- [ ] Riemann::ROE
+- [x] Riemann::HLL
+- [x] Riemann::ROE
 
 ---
 - [ ] CMake-based build for arbitrary laptop setup 
 - [ ] CMake-based build for cluster setup 
-- [ ] OpenMP backend for cluster submission
-- [ ] CUDA backend for cluster submission
-
-
+- [ ] Highly optimized HLL-MUSCL solver:
+    - [ ] Serial
+    - [ ] OpenMP (Cluster)
+    - [ ] CUDA (Cluster)
 
 ---
+- [ ] Timing capabilities
+- [ ] Weak scaling analysis
+- [ ] Strong scaling analysis
 
 ## Requirements
 
