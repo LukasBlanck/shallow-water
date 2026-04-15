@@ -16,7 +16,7 @@ This project aims to simulate fluids flow governed by the SWE using C++ for heav
 Current / planned project scope:
 
 - [x] CMake-based build for local setup 
-- [x] Modular parameter/solver choosing via .toml input
+- [x] Modular parameters/solvers via .toml input
 - [x] Python visualization
 - [x] SanityChecks::Positivity
 - [x] SanityChecks::Mass_conservation
@@ -29,6 +29,7 @@ Current / planned project scope:
 - [x] Riemann::ROE
 
 ---
+- [ ] Non-flat bathymetry
 - [ ] CMake-based build for arbitrary laptop setup 
 - [ ] CMake-based build for cluster setup 
 - [ ] Highly optimized HLL-MUSCL solver:
@@ -67,6 +68,10 @@ python3 pip install configs/requirements.txt
 ```
 python3 python/visualize_3D_animated.py
 ```
+
+## Solver Structure
+
+![](docs/Solver_structure.svg)
 
 ## License
 Copyright (c) 2026 Lukas Blanck
