@@ -16,8 +16,6 @@ literature
 docs/v*
 html/
 Doxyfile
-
 # Personal presentations
 *.pptx
 docs/*.drawio
-docs/*.svg
