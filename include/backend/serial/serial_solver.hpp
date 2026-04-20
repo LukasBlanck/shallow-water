@@ -89,7 +89,7 @@ class SerialSolver {
             compute_rhs(U2_, rhs_);
             time_integrator_.compute_U_next(U_next_, U2_, U_, rhs_);
 
-            U_ = U_next_;
+            std::swap(U_, U_next_);
             time += dt_;
 
             bc_.apply_BC(U_);
