@@ -1,7 +1,6 @@
 #pragma once
 
-#include "include/backend/serial/reconstruction/reconstruction.hpp"
-#include "include/backend/serial/riemann/riemann.hpp"
+#include "include/core/cell_state.hpp"
 #include "include/core/state.hpp"
 #include "include/core/xflux_field.hpp"
 #include "include/core/yflux_field.hpp"
@@ -9,8 +8,10 @@
 class FluxAssembly {
   public:
     FluxAssembly() = default;
-    void compute_x_fluxes(const State &U, const Reconstruction &recon,
-                          const RiemannSolver &riemann_solver, XFluxField &Fx, Grid &grid) {
+
+    template <class Recon, class Riemann>
+    void compute_x_fluxes(const State &U, const Recon &recon, const Riemann &riemann_solver,
+                          XFluxField &Fx, Grid &grid) {
         const int nG = grid.nG();
         for (int i = nG - 1; i < nG + grid.Nx(); i++) {
             for (int j = nG; j < nG + grid.Ny(); j++) {
@@ -26,8 +27,9 @@ class FluxAssembly {
         }
     }
 
-    void compute_y_fluxes(const State &U, const Reconstruction &recon,
-                          const RiemannSolver &riemann_solver, YFluxField &Fy, Grid &grid) {
+    template <class Recon, class Riemann>
+    void compute_y_fluxes(const State &U, const Recon &recon, const Riemann &riemann_solver,
+                          YFluxField &Fy, Grid &grid) {
         const int nG = grid.nG();
         for (int i = nG; i < nG + grid.Nx(); i++) {
             for (int j = nG - 1; j < nG + grid.Ny(); j++) {
