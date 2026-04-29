@@ -29,7 +29,7 @@ Current / planned project scope:
 - [x] Riemann::ROE
 
 ---
-- [ ] Non-flat bathymetry
+- [x] Non-flat bathymetry
 - [ ] CMake-based build for arbitrary laptop setup 
 - [ ] CMake-based build for cluster setup 
 - [ ] Highly optimized HLL-MUSCL solver:
