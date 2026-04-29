@@ -8,7 +8,7 @@ enum class BackendType { Serial };
 
 enum class BoundaryType { ReflectingWalls };
 
-enum class BathymetryType { Flat };
+enum class BathymetryType { None, Flat, GaussHill };
 
 enum class InitialConditionType { GaussInitial, StillWater, DamBreak, DamBreakRadial };
 
@@ -31,6 +31,13 @@ struct MeshConfig {
 
 struct BathymetryConfig {
     BathymetryType type{};
+
+    double b0{};
+    double bathy_x0{};
+    double bathy_y0{};
+    double bathy_sigma_x{};
+    double bathy_sigma_y{};
+    double bathy_peak_height{};
 };
 
 struct BoundaryConfig {

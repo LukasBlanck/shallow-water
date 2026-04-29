@@ -49,7 +49,12 @@ InitialConditionType parse_initial_condition_type(const std::string &s) {
 }
 
 BathymetryType parse_bathymetry_type(const std::string &s) {
-    if (s == "Flat") return BathymetryType::Flat;
+    if (s == "Flat")
+        return BathymetryType::Flat;
+    else if (s == "None")
+        return BathymetryType::None;
+    else if (s == "GaussHill")
+        return BathymetryType::GaussHill;
     throw std::runtime_error("Unknown bathymetry type: " + s);
 }
 
@@ -95,6 +100,15 @@ SimulationConfig load_config(const std::filesystem::path &path) {
 
     cfg.bathymetry.type =
         parse_bathymetry_type(require_value<std::string>((*bathy)["type"], "bathymetry.type"));
+    cfg.bathymetry.b0 = require_value<double>((*bathy)["b0"], "bathymetry.b0");
+    cfg.bathymetry.bathy_x0 = require_value<double>((*bathy)["bathy_x0"], "bathymetry.x0");
+    cfg.bathymetry.bathy_y0 = require_value<double>((*bathy)["bathy_y0"], "bathymetry.y0");
+    cfg.bathymetry.bathy_sigma_x =
+        require_value<double>((*bathy)["bathy_sigma_x"], "bathymetry.sigma_x");
+    cfg.bathymetry.bathy_sigma_y =
+        require_value<double>((*bathy)["bathy_sigma_y"], "bathymetry.sigma_y");
+    cfg.bathymetry.bathy_peak_height =
+        require_value<double>((*bathy)["bathy_peak_height"], "bathymetry.peak_height");
 
     const toml::table *boundary = tbl["boundary"].as_table();
     if (!boundary) throw std::runtime_error("Missing or invalid [boundary] table");

@@ -3,13 +3,17 @@
 #include "configs/config.hpp"
 
 #include "include/backend/serial/finite_volume/finite_volume.hpp"
+#include "include/backend/serial/finite_volume/finite_volume_bathy.hpp"
 #include "include/backend/serial/flux_assembly/flux_assembly.hpp"
+#include "include/backend/serial/flux_assembly/flux_assembly_bathy.hpp"
 #include "include/backend/serial/reconstruction/muscl.hpp"
 #include "include/backend/serial/reconstruction/piecewise_const.hpp"
 #include "include/backend/serial/riemann/HLL.hpp"
 #include "include/backend/serial/riemann/ROE.hpp"
 #include "include/backend/serial/riemann/rusanov.hpp"
 #include "include/backend/serial/ssp_rk3/ssp_rk3.hpp"
+#include "include/bathymetry/apply_bathymetry.hpp"
+#include "include/core/array2D.hpp"
 #include "include/core/grid.hpp"
 #include "include/core/state.hpp"
 #include "include/core/xflux_field.hpp"
@@ -23,6 +27,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cstddef>
+#include <cstdio>
 #include <iostream>
 #include <memory>
 #include <stdexcept>
@@ -30,17 +35,19 @@
 #include <type_traits>
 #include <vector>
 
-template <class Boundary, class Reconstruction, class Riemann, class TimeIntegrator>
+template <class Boundary, class Reconstruction, class Riemann, class TimeIntegrator,
+          class Bathymetry>
 class SerialSolver {
   public:
     explicit SerialSolver(const SimulationConfig &cfg)
         : cfg_(cfg), grid_(cfg.mesh.Nx, cfg.mesh.Ny, cfg.mesh.Lx, cfg.mesh.Ly, cfg.mesh.nG),
           dt_(cfg.time.end_time / static_cast<double>(cfg.time.time_steps)),
           end_time_(cfg.time.end_time), steps_(cfg.time.time_steps),
-          save_every_(static_cast<std::size_t>(cfg.time.save_every)), U_(grid_), U1_(grid_),
-          U2_(grid_), U_next_(grid_), rhs_(grid_), bc_(grid_), recon_(), riemann_(),
-          flux_assembly_(), fv_(grid_), time_integrator_(dt_), x_flux_field_(grid_),
-          y_flux_field_(grid_),
+          save_every_(static_cast<std::size_t>(cfg.time.save_every)),
+          B_(grid_.Nx_total(), grid_.Ny_total()), U_(grid_), U1_(grid_), U2_(grid_), U_next_(grid_),
+          rhs_(grid_), bc_(grid_), recon_(), riemann_(), flux_assembly_(), fv_(grid_),
+          fv_bathy_(grid_), time_integrator_(dt_), x_flux_field_(grid_), y_flux_field_(grid_),
+          x_flux_minus_(grid_), x_flux_plus_(grid_), y_flux_minus_(grid_), y_flux_plus_(grid_),
           writer_(cfg.output.path.string(), grid_, cfg.mesh.spatial_unit_x, cfg.mesh.spatial_unit_y,
                   cfg.mesh.spatial_unit_h, cfg.time.time_unit, cfg.time.save_every),
           sanity_checks_(make_sanity_checks(cfg)),
@@ -49,6 +56,10 @@ class SerialSolver {
                                             time_integrator_name_static())),
           riemann_name_(riemann_name_static()), reconstruction_name_(reconstruction_name_static()),
           time_integrator_name_(time_integrator_name_static()) {
+
+        apply_bathymetry(cfg_, grid_, B_);
+        bc_.apply_BC(B_);
+
         apply_initial_condition(cfg_, grid_, U_);
         bc_.apply_BC(U_);
 
@@ -78,40 +89,83 @@ class SerialSolver {
                                time_integrator_name_);
         run_sanity_checks(time, 0);
 
-        // SSP-RK3
-        for (std::size_t step = 0; step < steps_; ++step) {
-            compute_rhs(U_, rhs_);
-            time_integrator_.compute_U1(U1_, U_, rhs_);
+        if constexpr (Bathymetry::enabled) {
+            printf("\nBathymetry enabled.\n\n");
+            // SSP-RK3
+            for (std::size_t step = 0; step < steps_; ++step) {
+                compute_rhs_bathy(U_, rhs_);
+                time_integrator_.compute_U1(U1_, U_, rhs_);
 
-            compute_rhs(U1_, rhs_);
-            time_integrator_.compute_U2(U2_, U1_, U_, rhs_);
+                compute_rhs_bathy(U1_, rhs_);
+                time_integrator_.compute_U2(U2_, U1_, U_, rhs_);
 
-            compute_rhs(U2_, rhs_);
-            time_integrator_.compute_U_next(U_next_, U2_, U_, rhs_);
+                compute_rhs_bathy(U2_, rhs_);
+                time_integrator_.compute_U_next(U_next_, U2_, U_, rhs_);
 
-            std::swap(U_, U_next_);
-            time += dt_;
+                std::swap(U_, U_next_);
+                time += dt_;
 
-            bc_.apply_BC(U_);
+                bc_.apply_BC(U_);
 
-            const std::size_t step_number = step + 1;
+                const std::size_t step_number = step + 1;
 
-            // ETA
+                // ETA
 
-            if (estimate_eta && !eta_printed && step_number == eta_probe_step) {
-                const auto now = std::chrono::steady_clock::now();
-                const double elapsed_sec = std::chrono::duration<double>(now - start_wall).count();
+                if (estimate_eta && !eta_printed && step_number == eta_probe_step) {
+                    const auto now = std::chrono::steady_clock::now();
+                    const double elapsed_sec =
+                        std::chrono::duration<double>(now - start_wall).count();
 
-                const double eta_sec = estimate_eta_seconds(step_number, steps_, elapsed_sec);
+                    const double eta_sec = estimate_eta_seconds(step_number, steps_, elapsed_sec);
 
-                std::cout << "ETA = " << format_duration(eta_sec) << '\n';
-                eta_printed = true;
+                    std::cout << "ETA = " << format_duration(eta_sec) << '\n';
+                    eta_printed = true;
+                }
+
+                // output & sanity checks
+                if (step_number % save_every_ == 0 || step_number == steps_) {
+                    writer_.write_snapshot(U_, time);
+                    run_sanity_checks(time, step_number);
+                }
             }
 
-            // output & sanity checks
-            if (step_number % save_every_ == 0 || step_number == steps_) {
-                writer_.write_snapshot(U_, time);
-                run_sanity_checks(time, step_number);
+        } else {
+            // SSP-RK3
+            for (std::size_t step = 0; step < steps_; ++step) {
+                compute_rhs(U_, rhs_);
+                time_integrator_.compute_U1(U1_, U_, rhs_);
+
+                compute_rhs(U1_, rhs_);
+                time_integrator_.compute_U2(U2_, U1_, U_, rhs_);
+
+                compute_rhs(U2_, rhs_);
+                time_integrator_.compute_U_next(U_next_, U2_, U_, rhs_);
+
+                std::swap(U_, U_next_);
+                time += dt_;
+
+                bc_.apply_BC(U_);
+
+                const std::size_t step_number = step + 1;
+
+                // ETA
+
+                if (estimate_eta && !eta_printed && step_number == eta_probe_step) {
+                    const auto now = std::chrono::steady_clock::now();
+                    const double elapsed_sec =
+                        std::chrono::duration<double>(now - start_wall).count();
+
+                    const double eta_sec = estimate_eta_seconds(step_number, steps_, elapsed_sec);
+
+                    std::cout << "ETA = " << format_duration(eta_sec) << '\n';
+                    eta_printed = true;
+                }
+
+                // output & sanity checks
+                if (step_number % save_every_ == 0 || step_number == steps_) {
+                    writer_.write_snapshot(U_, time);
+                    run_sanity_checks(time, step_number);
+                }
             }
         }
     }
@@ -123,6 +177,19 @@ class SerialSolver {
         flux_assembly_.compute_x_fluxes(U_in, recon_, riemann_, x_flux_field_, grid_);
         flux_assembly_.compute_y_fluxes(U_in, recon_, riemann_, y_flux_field_, grid_);
         fv_.apply_spatial_operator(L_out, x_flux_field_, y_flux_field_);
+    }
+
+    void compute_rhs_bathy(State &U_in, State &L_out) {
+        bc_.apply_BC(U_in);
+
+        flux_assembly_bathy_.compute_x_fluxes(U_in, B_, recon_, riemann_, x_flux_minus_,
+                                              x_flux_plus_, grid_);
+
+        flux_assembly_bathy_.compute_y_fluxes(U_in, B_, recon_, riemann_, y_flux_minus_,
+                                              y_flux_plus_, grid_);
+
+        fv_bathy_.apply_spatial_operator(L_out, x_flux_minus_, x_flux_plus_, y_flux_minus_,
+                                         y_flux_plus_);
     }
 
     void run_sanity_checks(double time, std::size_t step) {
@@ -187,6 +254,8 @@ class SerialSolver {
     std::size_t steps_{};
     std::size_t save_every_{};
 
+    Array2D B_; // Bathymetry
+
     State U_;
     State U1_;
     State U2_;
@@ -197,11 +266,16 @@ class SerialSolver {
     Reconstruction recon_;
     Riemann riemann_;
     FluxAssembly flux_assembly_;
+    FluxAssemblyBathy flux_assembly_bathy_; // Bathymetry
     FiniteVolume fv_;
+    FiniteVolumeBathy fv_bathy_; // Bathymetry
     TimeIntegrator time_integrator_;
 
     XFluxField x_flux_field_;
     YFluxField y_flux_field_;
+
+    XFluxField x_flux_minus_, x_flux_plus_; // Bathymetry
+    YFluxField y_flux_minus_, y_flux_plus_; // Bathymetry
 
     NetCDFWriter writer_;
     std::vector<std::unique_ptr<SanityCheck>> sanity_checks_;
