@@ -120,6 +120,17 @@ class SolverAssembly {
                 solver.run();
                 return;
             }
+            // HLL + PiecewiseConst + Flat
+            if (cfg_.boundary.type == BoundaryType::ReflectingWalls &&
+                cfg_.solver.reconstruction == ReconstructionType::PiecewiseConst &&
+                cfg_.solver.riemann == RiemannType::HLL &&
+                cfg_.solver.time == TimeIntegratorType::SSPRK3 &&
+                cfg_.bathymetry.type == BathymetryType::Flat) {
+
+                SerialSolver<ReflectingWalls, PiecewiseConst, HLL, SSPRK3, Flat> solver(cfg_);
+                solver.run();
+                return;
+            }
 
             throw std::runtime_error("Unsupported serial solver combination");
         }
