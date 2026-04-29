@@ -36,6 +36,32 @@ if PRINT_DATASET_SUMMARY_TO_CLI:
     print(ds)
     print("================================\n")
 
+# ---------------- Read shared metadata ----------------
+time_unit = ds["time"].attrs.get("units", "not specified") if "time" in ds else "not specified"
+h_unit = ds["h_min"].attrs.get("units", "not specified") if "h_min" in ds else "not specified"
+
+dt_used = ds.attrs.get("dt", None)
+riemann_solver = ds.attrs.get("riemann_solver", "not specified")
+reconstruction = ds.attrs.get("reconstruction", "not specified")
+time_integrator = ds.attrs.get("time_integrator", "not specified")
+boundary_condition = ds.attrs.get("boundary_condition", "not specified")
+bathymetry = ds.attrs.get("bathymetry", "not specified")
+save_every = ds.attrs.get("save_every", "not specified")
+
+mass_conservation_enabled = get_bool_attr(ds, "mass_conservation_enabled", False)
+positivity_enabled = get_bool_attr(ds, "positivity_enabled", False)
+
+# ---------------- Print metadata to CLI ----------------
+print("Simulation metadata:")
+print(f"  dt              = {dt_used}" if dt_used is not None else "  dt              = n/a")
+print(f"  Riemann solver  = {riemann_solver}")
+print(f"  reconstruction  = {reconstruction}")
+print(f"  time integrator = {time_integrator}")
+print(f"  BC              = {boundary_condition}")
+print(f"  Bathymetry      = {bathymetry}")
+print(f"  save_every      = {save_every}")
+print()
+
 # ---------------- Optional explicit series output ----------------
 if PRINT_SERIES_TO_CLI:
     allowed_series = {"h_min", "mass_rel_err"}
@@ -51,10 +77,7 @@ if PRINT_SERIES_TO_CLI:
     values = ds[CLI_SERIES_TO_PRINT].values
     steps = ds["step"].values if "step" in ds else None
     unit = ds[CLI_SERIES_TO_PRINT].attrs.get("units", "not specified")
-    print("\n===== NetCDF file contents =====")
-    print(ds)
-    print("================================\n")
-    
+
     print(f"\n===== Explicit CLI output: {CLI_SERIES_TO_PRINT} =====")
     print(f"unit = {unit}")
 
@@ -76,19 +99,6 @@ if PRINT_SERIES_TO_CLI:
 
     print("=" * 56 + "\n")
 
-# ---------------- Read shared metadata ----------------
-time_unit = ds["time"].attrs.get("units", "not specified") if "time" in ds else "not specified"
-h_unit = ds["h_min"].attrs.get("units", "not specified") if "h_min" in ds else "not specified"
-
-dt_used = ds.attrs.get("dt", None)
-riemann_solver = ds.attrs.get("riemann_solver", "not specified")
-reconstruction = ds.attrs.get("reconstruction", "not specified")
-time_integrator = ds.attrs.get("time_integrator", "not specified")
-save_every = ds.attrs.get("save_every", "not specified")
-
-mass_conservation_enabled = get_bool_attr(ds, "mass_conservation_enabled", False)
-positivity_enabled = get_bool_attr(ds, "positivity_enabled", False)
-
 # ---------------- Decide what to plot ----------------
 available_plots = []
 
@@ -101,19 +111,22 @@ if positivity_enabled and "h_min" in ds and "time" in ds:
 if not available_plots:
     raise RuntimeError(f"No supported sanity-check data found in {FILE_PATH}")
 
+# ---------------- Build info box text ----------------
 info_lines = [
     f"dt = {dt_used:.6g} {time_unit}" if dt_used is not None else "dt = n/a",
     f"save_every = {save_every}",
     f"Riemann: {riemann_solver}",
     f"Recon: {reconstruction}",
     f"Time int.: {time_integrator}",
+    f"BC: {boundary_condition}",
+    f"Bathymetry: {bathymetry}",
 ]
 info_text = "\n".join(info_lines)
 
 # ---------------- Create figure with dedicated info subplot ----------------
 nplots = len(available_plots)
-fig = plt.figure(figsize=(9, 1.8 + 5 * nplots))
-gs = fig.add_gridspec(nplots + 1, 1, height_ratios=[1.2] + [5] * nplots)
+fig = plt.figure(figsize=(9, 2.4 + 5 * nplots))
+gs = fig.add_gridspec(nplots + 1, 1, height_ratios=[1.6] + [5] * nplots)
 
 info_ax = fig.add_subplot(gs[0])
 info_ax.axis("off")
@@ -135,7 +148,7 @@ for ax, plot_kind in zip(axes, available_plots):
         t = ds["time"].values
         rel_err = ds["mass_rel_err"].values
 
-        if USE_LOG_SCALE_FOR_ERRORS:
+        if USE_LOG_SCALE_FOR_ERRORS and np.any(rel_err > 0):
             ax.semilogy(t, rel_err, marker="o", linewidth=1.5, markersize=4)
         else:
             ax.plot(t, rel_err, marker="o", linewidth=1.5, markersize=4)

@@ -6,7 +6,7 @@ from matplotlib.colors import Normalize
 import numpy as np
 
 FILE_PATH = "output/simulation.nc"
-VAR_NAME = "h"
+VAR_NAME = "eta"  # eta = h + B
 
 SAVE_VIDEO = True
 VIDEO_PATH = "output/simulation_3d.mp4"   # or "output/simulation_3d.gif"
@@ -15,6 +15,9 @@ ADAPTIVE_FPS = True
 FPS = 150   # used only if ADAPTIVE_FPS = False
 
 CMAP = "viridis"
+
+# Show bathymetry B as a dark bottom surface
+SHOW_B_BOTTOM = True
 
 # Performance knob:
 # 1 = use every cell
@@ -32,6 +35,7 @@ AZIM = -135
 
 # Optional info box in plot
 SHOW_INFO_BOX = True
+
 
 def time_unit_to_seconds_factor(unit):
     u = str(unit).strip().lower()
@@ -70,7 +74,6 @@ def time_unit_to_seconds_factor(unit):
     return mapping[u]
 
 
-
 # ---------------- Load dataset ----------------
 ds = xr.open_dataset(FILE_PATH, engine="netcdf4")
 
@@ -79,31 +82,62 @@ dt_used = ds.attrs.get("dt", None)
 riemann_solver = ds.attrs.get("riemann_solver", "n/a")
 reconstruction = ds.attrs.get("reconstruction", "n/a")
 time_integrator = ds.attrs.get("time_integrator", "n/a")
+boundary_condition = ds.attrs.get("boundary_condition", "n/a")
+bathymetry = ds.attrs.get("bathymetry", "n/a")
 
 print("Simulation metadata:")
 print(f"  dt              = {dt_used}" if dt_used is not None else "  dt              = n/a")
 print(f"  Riemann solver  = {riemann_solver}")
 print(f"  reconstruction  = {reconstruction}")
 print(f"  time integrator = {time_integrator}")
+print(f"  BC              = {boundary_condition}")
+print(f"  Bathymetry      = {bathymetry}")
+
+time_unit = ds["time"].attrs.get("units", "s")
+save_every = ds.attrs.get("save_every", "n/a")
 
 info_text = "\n".join([
-    f"dt = {dt_used:.6g} {ds['time'].attrs.get('units', 'not specified')}" if dt_used is not None else "dt = n/a",
+    f"dt = {dt_used:.6g} {time_unit}" if dt_used is not None else "dt = n/a",
+    f"save_every = {save_every}",
     f"Riemann: {riemann_solver}",
     f"Recon: {reconstruction}",
     f"Time int.: {time_integrator}",
+    f"BC: {boundary_condition}",
+    f"Bathymetry: {bathymetry}",
 ])
 
 x = ds["x"].values
 y = ds["y"].values
 t = ds["time"].values
 
-time_unit = ds["time"].attrs.get("units", "s")
-save_every = ds.attrs.get("save_every", "n/a")
+if "h" not in ds:
+    raise RuntimeError(f"Variable 'h' not found in {FILE_PATH}")
 
-# Stored as (time, x, y) -> transpose to (time, y, x)
-data = ds[VAR_NAME].transpose("time", "y", "x").load().values
+if "B" not in ds:
+    raise RuntimeError(f"Variable 'B' not found in {FILE_PATH}")
 
-if data.shape[0] == 0:
+# Stored h as (time, x, y), B as (x, y).
+# Transpose to plotting layout: h -> (time, y, x), B -> (y, x).
+# Efficient: spatially stride before loading, then broadcast B over time.
+h_plot = (
+    ds["h"]
+    .isel(x=slice(None, None, SPATIAL_STRIDE), y=slice(None, None, SPATIAL_STRIDE))
+    .transpose("time", "y", "x")
+    .load()
+    .values
+)
+
+B_plot = (
+    ds["B"]
+    .isel(x=slice(None, None, SPATIAL_STRIDE), y=slice(None, None, SPATIAL_STRIDE))
+    .transpose("y", "x")
+    .load()
+    .values
+)
+
+data_plot = h_plot + B_plot[None, :, :]  # eta = h + B
+
+if data_plot.shape[0] == 0:
     raise RuntimeError("No time frames found in dataset.")
 
 if ADAPTIVE_FPS:
@@ -127,14 +161,19 @@ print(f"  fps used        = {FPS_USED:.6g}")
 # Optional spatial downsampling for speed
 x_plot = x[::SPATIAL_STRIDE]
 y_plot = y[::SPATIAL_STRIDE]
-data_plot = data[:, ::SPATIAL_STRIDE, ::SPATIAL_STRIDE]
 
 X, Y = np.meshgrid(x_plot, y_plot)
 
 # ---------------- Fixed range from initial frame ----------------
 z0 = data_plot[0]
+
 z0_min = float(np.nanmin(z0))
 z0_max = float(np.nanmax(z0))
+
+if SHOW_B_BOTTOM:
+    z0_min = min(z0_min, float(np.nanmin(B_plot)))
+    z0_max = max(z0_max, float(np.nanmax(B_plot)))
+
 z0_span = z0_max - z0_min
 buffer = max(BUFFER_FRAC * z0_span, MIN_BUFFER)
 
@@ -147,16 +186,22 @@ norm = Normalize(vmin=vmin, vmax=vmax)
 fig = plt.figure(figsize=(9, 6))
 ax = fig.add_subplot(111, projection="3d")
 
-ax.set_xlabel(f"x [{ds['x'].attrs.get('units', '')}]".strip())
-ax.set_ylabel(f"y [{ds['y'].attrs.get('units', '')}]".strip())
-ax.set_zlabel(f"{VAR_NAME} [{ds[VAR_NAME].attrs.get('units', '')}]".strip())
+x_unit = ds["x"].attrs.get("units", "")
+y_unit = ds["y"].attrs.get("units", "")
+eta_unit = ds["h"].attrs.get("units", "")
+
+ax.set_xlabel(f"x [{x_unit}]".strip())
+ax.set_ylabel(f"y [{y_unit}]".strip())
+ax.set_zlabel(rf"$\eta$ [{eta_unit}]".strip())
 
 ax.set_xlim(float(x_plot[0]), float(x_plot[-1]))
 ax.set_ylim(float(y_plot[0]), float(y_plot[-1]))
 ax.set_zlim(vmin, vmax)
 ax.view_init(elev=ELEV, azim=AZIM)
 
-title = ax.set_title(f"{VAR_NAME} at t={float(t[0]):.6f} {ds['time'].attrs.get('units', 'not specified')}")
+title = ax.set_title(
+    rf"$\eta = h + B$ at t={float(t[0]):.6f} {time_unit}"
+)
 
 if SHOW_INFO_BOX:
     ax.text2D(
@@ -167,7 +212,20 @@ if SHOW_INFO_BOX:
         bbox=dict(boxstyle="round", facecolor="white", alpha=0.85)
     )
 
-# Initial surface
+# Static bathymetry bottom surface
+if SHOW_B_BOTTOM:
+    ax.plot_surface(
+        X,
+        Y,
+        B_plot,
+        color="black",
+        alpha=0.45,
+        linewidth=0,
+        antialiased=False,
+        shade=True
+    )
+
+# Initial eta surface
 surf = ax.plot_surface(
     X,
     Y,
@@ -183,7 +241,7 @@ surf = ax.plot_surface(
 mappable = cm.ScalarMappable(norm=norm, cmap=CMAP)
 mappable.set_array([])
 cbar = fig.colorbar(mappable, ax=ax, shrink=0.75, pad=0.12)
-cbar.set_label(f"{VAR_NAME} [{ds[VAR_NAME].attrs.get('units', '')}]".strip())
+cbar.set_label(rf"$\eta$ [{eta_unit}]".strip())
 
 
 def update(frame_idx):
@@ -201,7 +259,9 @@ def update(frame_idx):
         shade=False
     )
 
-    title.set_text(f"{VAR_NAME} at t={float(t[frame_idx]):.6f} {ds['time'].attrs.get('units', 'not specified')}")
+    title.set_text(
+        rf"$\eta = h + B$ at t={float(t[frame_idx]):.6f} {time_unit}"
+    )
     return surf, title
 
 

@@ -19,9 +19,9 @@ NetCDFWriter::NetCDFWriter(const std::string &path, const Grid &grid,
           return netCDF::NcFile(path, netCDF::NcFile::replace);
       }()),
       nx_(static_cast<std::size_t>(grid_.Nx())), ny_(static_cast<std::size_t>(grid_.Ny())),
-      h_buf_(nx_ * ny_), hu_buf_(nx_ * ny_), hv_buf_(nx_ * ny_), spatial_unit_x_(spatial_unit_x),
-      spatial_unit_y_(spatial_unit_y), spatial_unit_h_(spatial_unit_h), time_unit_(time_unit),
-      save_every_(save_every) {
+      h_buf_(nx_ * ny_), hu_buf_(nx_ * ny_), hv_buf_(nx_ * ny_), B_buf_(nx_ * ny_),
+      spatial_unit_x_(spatial_unit_x), spatial_unit_y_(spatial_unit_y),
+      spatial_unit_h_(spatial_unit_h), time_unit_(time_unit), save_every_(save_every) {
     define_file_structure();
     write_coordinates();
 }
@@ -30,14 +30,13 @@ void NetCDFWriter::define_file_structure() {
     time_dim_ = file_.addDim("time");
     x_dim_ = file_.addDim("x", grid_.Nx());
     y_dim_ = file_.addDim("y", grid_.Ny());
-
     time_var_ = file_.addVar("time", netCDF::ncDouble, time_dim_);
     x_var_ = file_.addVar("x", netCDF::ncDouble, x_dim_);
     y_var_ = file_.addVar("y", netCDF::ncDouble, y_dim_);
-
     h_var_ = file_.addVar("h", netCDF::ncDouble, {time_dim_, x_dim_, y_dim_});
     hu_var_ = file_.addVar("hu", netCDF::ncDouble, {time_dim_, x_dim_, y_dim_});
     hv_var_ = file_.addVar("hv", netCDF::ncDouble, {time_dim_, x_dim_, y_dim_});
+    B_var_ = file_.addVar("B", netCDF::ncDouble, {x_dim_, y_dim_});
 
     if (!spatial_unit_x_.empty()) {
         x_var_.putAtt("units", spatial_unit_x_);
@@ -47,6 +46,7 @@ void NetCDFWriter::define_file_structure() {
     }
     if (!spatial_unit_h_.empty()) {
         h_var_.putAtt("units", spatial_unit_h_);
+        B_var_.putAtt("units", spatial_unit_h_);
     }
     if (!time_unit_.empty()) {
         time_var_.putAtt("units", time_unit_);
@@ -82,12 +82,31 @@ void NetCDFWriter::pack_interior_into(const Array2D &A, std::vector<double> &buf
     }
 }
 
+void NetCDFWriter::write_bathymetry(const Array2D &B) {
+
+    if (bathymetry_written_) {
+        return;
+    }
+
+    pack_interior_into(B, B_buf_);
+
+    const std::vector<size_t> start{0, 0};
+    const std::vector<size_t> count{nx_, ny_};
+
+    B_var_.putVar(start, count, B_buf_.data());
+    bathymetry_written_ = true;
+}
+
 void NetCDFWriter::write_snapshot(const State &U, double time, double dt,
                                   const std::string &riemann_solver,
                                   const std::string &reconstruction,
-                                  const std::string &time_integrator) {
-    if (!metadata_written_ && (!std::isnan(dt) || !riemann_solver.empty() ||
-                               !reconstruction.empty() || !time_integrator.empty())) {
+                                  const std::string &time_integrator,
+                                  const std::string &boundary_condition,
+                                  const std::string &bathymetry) {
+
+    if (!metadata_written_ &&
+        (!std::isnan(dt) || !riemann_solver.empty() || !reconstruction.empty() ||
+         !time_integrator.empty() || !boundary_condition.empty() || !bathymetry.empty())) {
 
         if (!std::isnan(dt)) {
             file_.putAtt("dt", netCDF::ncDouble, dt);
@@ -101,7 +120,12 @@ void NetCDFWriter::write_snapshot(const State &U, double time, double dt,
         if (!time_integrator.empty()) {
             file_.putAtt("time_integrator", time_integrator);
         }
-
+        if (!boundary_condition.empty()) {
+            file_.putAtt("boundary_condition", boundary_condition);
+        }
+        if (!bathymetry.empty()) {
+            file_.putAtt("bathymetry", bathymetry);
+        }
         metadata_written_ = true;
     }
 

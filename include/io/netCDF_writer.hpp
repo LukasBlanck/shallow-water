@@ -19,7 +19,11 @@ class NetCDFWriter {
                         double dt = std::numeric_limits<double>::quiet_NaN(),
                         const std::string &riemann_solver = "",
                         const std::string &reconstruction = "",
-                        const std::string &time_integrator = "");
+                        const std::string &time_integrator = "",
+                        const std::string &boundary_condition = "",
+                        const std::string &bathymetry = "");
+
+    void write_bathymetry(const Array2D &B);
 
   private:
     void define_file_structure();
@@ -32,13 +36,15 @@ class NetCDFWriter {
     netCDF::NcDim time_dim_, x_dim_, y_dim_;
     netCDF::NcVar time_var_, x_var_, y_var_;
     netCDF::NcVar h_var_, hu_var_, hv_var_;
+    netCDF::NcVar B_var_;
 
     std::size_t nx_, ny_;
     std::size_t next_record_ = 0;
 
-    std::vector<double> h_buf_, hu_buf_, hv_buf_;
+    std::vector<double> h_buf_, hu_buf_, hv_buf_, B_buf_;
 
-    bool metadata_written_ = false;
+    bool metadata_written_{false};
+    bool bathymetry_written_{false};
 
     std::string spatial_unit_x_;
     std::string spatial_unit_y_;

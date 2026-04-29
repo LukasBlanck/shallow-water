@@ -2,12 +2,11 @@
 #include <cstdint>
 #include <filesystem>
 
-SanityCheckNetCDFWriter::SanityCheckNetCDFWriter(const std::string &path,
-                                                 const std::string &time_unit,
-                                                 const std::string &h_unit, int save_every,
-                                                 double dt, const std::string &riemann_solver,
-                                                 const std::string &reconstruction,
-                                                 const std::string &time_integrator)
+SanityCheckNetCDFWriter::SanityCheckNetCDFWriter(
+    const std::string &path, const std::string &time_unit, const std::string &h_unit,
+    int save_every, double dt, const std::string &riemann_solver, const std::string &reconstruction,
+    const std::string &time_integrator, const std::string &boundary_condition,
+    const std::string &bathymetry)
     : file_([&]() {
           std::filesystem::path p(path);
           if (p.has_parent_path()) {
@@ -17,7 +16,8 @@ SanityCheckNetCDFWriter::SanityCheckNetCDFWriter(const std::string &path,
       }()),
       time_unit_(time_unit), h_unit_(h_unit), save_every_(save_every), dt_(dt),
       riemann_solver_(riemann_solver), reconstruction_(reconstruction),
-      time_integrator_(time_integrator) {
+      time_integrator_(time_integrator), boundary_condition_(boundary_condition),
+      bathymetry_(bathymetry) {
     define_file_structure();
 }
 
@@ -49,6 +49,8 @@ void SanityCheckNetCDFWriter::define_file_structure() {
     file_.putAtt("riemann_solver", riemann_solver_);
     file_.putAtt("reconstruction", reconstruction_);
     file_.putAtt("time_integrator", time_integrator_);
+    file_.putAtt("boundary_condition", boundary_condition_);
+    file_.putAtt("bathymetry", bathymetry_);
 
     file_.putAtt("mass_conservation_enabled", netCDF::ncInt, 1);
     file_.putAtt("positivity_enabled", netCDF::ncInt, 1);
@@ -56,7 +58,7 @@ void SanityCheckNetCDFWriter::define_file_structure() {
 
 void SanityCheckNetCDFWriter::write(std::size_t step, double time, double rel_err, double h_min) {
     const std::vector<std::size_t> start{next_record_};
-    const std::uint64_t step_u64 = static_cast<unsigned long long>(step);
+    const std::uint64_t step_u64 = static_cast<std::uint64_t>(step);
 
     step_var_.putVar(start, &step_u64);
     time_var_.putVar(start, &time);

@@ -177,7 +177,93 @@ class SolverAssembly {
         if (cfg_.solver.reconstruction == ReconstructionType::MUSCL && cfg_.mesh.nG < 2) {
             throw std::runtime_error("MUSCL reconstruction requires nG >= 2");
         }
+        if (cfg_.mesh.Lx <= 0.0 || cfg_.mesh.Ly <= 0.0) {
+            throw std::runtime_error("Lx and Ly must be positive");
+        }
 
+        if (cfg_.time.cfl <= 0.0) {
+            throw std::runtime_error("cfl must be positive");
+        }
+
+        if (cfg_.time.cfl > 1.0) {
+            throw std::runtime_error("cfl should usually be <= 1.0");
+        }
+
+        if (cfg_.time.save_every <= 0) {
+            throw std::runtime_error("save_every must be > 0");
+        }
+
+        if (cfg_.time.save_every > cfg_.time.time_steps) {
+            throw std::runtime_error("save_every must not be larger than time_steps");
+        }
+
+        // Bathymetry
+        if (cfg_.bathymetry.type == BathymetryType::Flat ||
+            cfg_.bathymetry.type == BathymetryType::GaussHill) {
+            if (!std::isfinite(cfg_.bathymetry.b0)) {
+                throw std::runtime_error("bathymetry.b0 must be finite");
+            }
+        }
+
+        if (cfg_.bathymetry.type == BathymetryType::GaussHill) {
+            if (cfg_.bathymetry.bathy_sigma_x <= 0.0 || cfg_.bathymetry.bathy_sigma_y <= 0.0) {
+                throw std::runtime_error("Gaussian bathymetry sigmas must be positive");
+            }
+
+            if (cfg_.bathymetry.bathy_peak_height < 0.0) {
+                throw std::runtime_error("bathymetry.bathy_peak_height must be non-negative");
+            }
+
+            if (cfg_.bathymetry.bathy_x0 < 0.0 || cfg_.bathymetry.bathy_x0 > cfg_.mesh.Lx ||
+                cfg_.bathymetry.bathy_y0 < 0.0 || cfg_.bathymetry.bathy_y0 > cfg_.mesh.Ly) {
+                throw std::runtime_error("Gaussian bathymetry center must lie inside the domain");
+            }
+        }
+        // Initial Conditions
+        if (cfg_.initial_condition.h0 <= 0.0) {
+            throw std::runtime_error("initial_condition.h0 must be positive");
+        }
+        if (cfg_.initial_condition.type == InitialConditionType::GaussInitial) {
+            if (cfg_.initial_condition.sigma_x <= 0.0 || cfg_.initial_condition.sigma_y <= 0.0) {
+                throw std::runtime_error("Gaussian initial-condition sigmas must be positive");
+            }
+
+            if (cfg_.initial_condition.x0 < 0.0 || cfg_.initial_condition.x0 > cfg_.mesh.Lx ||
+                cfg_.initial_condition.y0 < 0.0 || cfg_.initial_condition.y0 > cfg_.mesh.Ly) {
+                throw std::runtime_error(
+                    "Gaussian initial-condition center must lie inside the domain");
+            }
+
+            if (cfg_.initial_condition.h0 + cfg_.initial_condition.peak_height <= 0.0) {
+                throw std::runtime_error("Gaussian initial condition can produce non-positive "
+                                         "water height: h0 + peak_height <= 0");
+            }
+        }
+        if (cfg_.initial_condition.type == InitialConditionType::DamBreak) {
+            if (cfg_.initial_condition.dam_height <= 0.0) {
+                throw std::runtime_error("dam_height must be positive");
+            }
+
+            if (cfg_.initial_condition.dam_x < 0.0 || cfg_.initial_condition.dam_x > cfg_.mesh.Lx) {
+                throw std::runtime_error("dam_x must lie inside the domain");
+            }
+        }
+        if (cfg_.initial_condition.type == InitialConditionType::DamBreakRadial) {
+            if (cfg_.initial_condition.dam_height <= 0.0) {
+                throw std::runtime_error("dam_height must be positive");
+            }
+
+            if (cfg_.initial_condition.dam_radius <= 0.0) {
+                throw std::runtime_error("dam_radius must be positive");
+            }
+
+            if (cfg_.initial_condition.dam_x0 < 0.0 ||
+                cfg_.initial_condition.dam_x0 > cfg_.mesh.Lx ||
+                cfg_.initial_condition.dam_y0 < 0.0 ||
+                cfg_.initial_condition.dam_y0 > cfg_.mesh.Ly) {
+                throw std::runtime_error("radial dam-break center must lie inside the domain");
+            }
+        }
         if (cfg_.backend.type == BackendType::Serial && cfg_.backend.threads != 1) {
             // ignore, warn, or throw depending your design
         }

@@ -13,6 +13,7 @@
 #include "include/backend/serial/riemann/rusanov.hpp"
 #include "include/backend/serial/ssp_rk3/ssp_rk3.hpp"
 #include "include/bathymetry/apply_bathymetry.hpp"
+#include "include/boundary/reflecting_walls.hpp"
 #include "include/core/array2D.hpp"
 #include "include/core/grid.hpp"
 #include "include/core/state.hpp"
@@ -51,14 +52,17 @@ class SerialSolver {
           writer_(cfg.output.path.string(), grid_, cfg.mesh.spatial_unit_x, cfg.mesh.spatial_unit_y,
                   cfg.mesh.spatial_unit_h, cfg.time.time_unit, cfg.time.save_every),
           sanity_checks_(make_sanity_checks(cfg)),
-          sanity_writer_(make_sanity_writer(cfg, dt_, riemann_name_static(),
-                                            reconstruction_name_static(),
-                                            time_integrator_name_static())),
+          sanity_writer_(make_sanity_writer(
+              cfg, dt_, riemann_name_static(), reconstruction_name_static(),
+              time_integrator_name_static(), boundary_name_static(), bathymetry_name_static())),
           riemann_name_(riemann_name_static()), reconstruction_name_(reconstruction_name_static()),
-          time_integrator_name_(time_integrator_name_static()) {
+          time_integrator_name_(time_integrator_name_static()),
+          bathymetry_name_(bathymetry_name_static()), boundary_name_(boundary_name_static()) {
 
         apply_bathymetry(cfg_, grid_, B_);
         bc_.apply_BC(B_);
+
+        writer_.write_bathymetry(B_);
 
         apply_initial_condition(cfg_, grid_, U_);
         bc_.apply_BC(U_);
@@ -86,11 +90,11 @@ class SerialSolver {
 
         // output and sanity check for initial setup
         writer_.write_snapshot(U_, time, dt_, riemann_name_, reconstruction_name_,
-                               time_integrator_name_);
+                               time_integrator_name_, boundary_name_, bathymetry_name_);
         run_sanity_checks(time, 0);
 
         if constexpr (Bathymetry::enabled) {
-            printf("\nBathymetry enabled.\n\n");
+            printf("\nINFO: Bathymetry enabled.\n\n");
             // SSP-RK3
             for (std::size_t step = 0; step < steps_; ++step) {
                 compute_rhs_bathy(U_, rhs_);
@@ -200,7 +204,8 @@ class SerialSolver {
 
     static std::unique_ptr<SanityCheckNetCDFWriter>
     make_sanity_writer(const SimulationConfig &cfg, double dt, const std::string &riemann_solver,
-                       const std::string &reconstruction, const std::string &time_integrator) {
+                       const std::string &reconstruction, const std::string &time_integrator,
+                       const std::string &boundary_condition, const std::string &bathymetry) {
 
         if (!cfg.sanity_checks.debug) {
             return nullptr;
@@ -212,7 +217,8 @@ class SerialSolver {
 
         return std::make_unique<SanityCheckNetCDFWriter>(
             cfg.sanity_checks.output_path.string(), cfg.time.time_unit, cfg.mesh.spatial_unit_h,
-            cfg.time.save_every, dt, riemann_solver, reconstruction, time_integrator);
+            cfg.time.save_every, dt, riemann_solver, reconstruction, time_integrator,
+            boundary_condition, bathymetry);
     }
 
     static std::string riemann_name_static() {
@@ -243,6 +249,26 @@ class SerialSolver {
             return "SSPRK3";
         }
         return "UnknownTimeIntegrator";
+    }
+
+    static std::string boundary_name_static() {
+        if constexpr (std::is_same_v<Boundary, ReflectingWalls>) {
+            return "Reflecting Walls";
+        }
+        return "UnknownBoundary";
+    }
+
+    static std::string bathymetry_name_static() {
+        if constexpr (std::is_same_v<Bathymetry, None>) {
+            return "None";
+        }
+        if constexpr (std::is_same_v<Bathymetry, Flat>) {
+            return "Flat";
+        }
+        if constexpr (std::is_same_v<Bathymetry, GaussHill>) {
+            return "Gaussian Hill";
+        }
+        return "UnknownBathymetry";
     }
 
   private:
@@ -284,4 +310,6 @@ class SerialSolver {
     const std::string riemann_name_;
     const std::string reconstruction_name_;
     const std::string time_integrator_name_;
+    const std::string bathymetry_name_;
+    const std::string boundary_name_;
 };

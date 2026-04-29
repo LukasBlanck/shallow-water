@@ -7,7 +7,8 @@ class SanityCheckNetCDFWriter {
     SanityCheckNetCDFWriter(const std::string &path, const std::string &time_unit,
                             const std::string &h_unit, int save_every, double dt,
                             const std::string &riemann_solver, const std::string &reconstruction,
-                            const std::string &time_integrator);
+                            const std::string &time_integrator,
+                            const std::string &boundary_condition, const std::string &bathymetry);
 
     void write(std::size_t step, double time, double rel_err, double h_min);
 
@@ -23,6 +24,8 @@ class SanityCheckNetCDFWriter {
     std::string riemann_solver_;
     std::string reconstruction_;
     std::string time_integrator_;
+    std::string boundary_condition_;
+    std::string bathymetry_;
 
     netCDF::NcDim record_dim_;
 
