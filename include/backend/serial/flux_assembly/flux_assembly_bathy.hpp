@@ -74,8 +74,8 @@ class FluxAssemblyBathy {
 
                 CellState U_plus_star(h_star_plus, h_star_plus * u_plus, h_star_plus * v_plus);
 
-                // HLL flux from hydrostatically corrected states.
-                CellState F_hll = riemann_solver.x_flux(U_minus_star, U_plus_star);
+                // HLL/ROE/Rusanov flux from hydrostatically corrected states.
+                CellState F = riemann_solver.x_flux(U_minus_star, U_plus_star);
 
                 // Hydrostatic pressure corrections.
                 const double corr_minus =
@@ -84,9 +84,9 @@ class FluxAssemblyBathy {
                 const double corr_plus =
                     0.5 * constants::g * (h_plus * h_plus - h_star_plus * h_star_plus);
 
-                CellState F_minus(F_hll.h(), F_hll.hu() + corr_minus, F_hll.hv());
+                CellState F_minus(F.h(), F.hu() + corr_minus, F.hv());
 
-                CellState F_plus(F_hll.h(), F_hll.hu() + corr_plus, F_hll.hv());
+                CellState F_plus(F.h(), F.hu() + corr_plus, F.hv());
 
                 Fx_minus.h()(i, j) = F_minus.h();
                 Fx_minus.hu()(i, j) = F_minus.hu();
@@ -157,8 +157,8 @@ class FluxAssemblyBathy {
 
                 CellState U_plus_star(h_star_plus, h_star_plus * u_plus, h_star_plus * v_plus);
 
-                // HLL flux from hydrostatically corrected states.
-                CellState G_hll = riemann_solver.y_flux(U_minus_star, U_plus_star);
+                // HLL/ROE/Rusanov flux from hydrostatically corrected states.
+                CellState G = riemann_solver.y_flux(U_minus_star, U_plus_star);
 
                 // Hydrostatic pressure corrections.
                 const double corr_minus =
@@ -167,9 +167,9 @@ class FluxAssemblyBathy {
                 const double corr_plus =
                     0.5 * constants::g * (h_plus * h_plus - h_star_plus * h_star_plus);
 
-                CellState G_minus(G_hll.h(), G_hll.hu(), G_hll.hv() + corr_minus);
+                CellState G_minus(G.h(), G.hu(), G.hv() + corr_minus);
 
-                CellState G_plus(G_hll.h(), G_hll.hu(), G_hll.hv() + corr_plus);
+                CellState G_plus(G.h(), G.hu(), G.hv() + corr_plus);
 
                 Fy_minus.h()(i, j) = G_minus.h();
                 Fy_minus.hu()(i, j) = G_minus.hu();
