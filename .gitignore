@@ -19,3 +19,4 @@ Doxyfile
 # Personal presentations
 *.pptx
 docs/*.drawio
+*.docx
