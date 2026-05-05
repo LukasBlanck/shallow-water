@@ -33,7 +33,7 @@ Current / planned project scope:
 - [ ] CMake-based build for arbitrary laptop setup 
 - [ ] CMake-based build for cluster setup 
 - [ ] Highly optimized HLL-MUSCL solver:
-    - [ ] Serial
+    - [x] Serial
     - [ ] OpenMP (Cluster)
     - [ ] CUDA (Cluster)
 
