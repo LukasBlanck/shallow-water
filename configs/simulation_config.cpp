@@ -152,8 +152,6 @@ SimulationConfig load_config(const std::filesystem::path &path) {
     cfg.solver.time =
         parse_time_integrator_type(require_value<std::string>((*solver)["time"], "solver.time"));
     cfg.solver.limiter = require_value<std::string>((*solver)["limiter"], "solver.limiter");
-    cfg.solver.positivity_preserving =
-        require_value<bool>((*solver)["positivity_preserving"], "solver.positivity_preserving");
 
     const toml::table *time = tbl["time"].as_table();
     if (!time) throw std::runtime_error("Missing or invalid [time] table");

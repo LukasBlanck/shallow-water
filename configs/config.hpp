@@ -66,7 +66,6 @@ struct SolverConfig {
     TimeIntegratorType time{};
 
     std::string limiter{};
-    bool positivity_preserving{};
 };
 
 struct TimeConfig {

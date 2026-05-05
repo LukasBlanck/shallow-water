@@ -42,7 +42,6 @@ reconstruction = "MUSCL"       # [PiecewiseConst, MUSCL]
 riemann = "HLL"                     # [Rusanov, HLL, ROE]
 time = "SSPRK3"
 limiter = "minmod"
-positivity_preserving = true
 
 [time]
 end_time = 5.0
