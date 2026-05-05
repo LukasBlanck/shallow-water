@@ -99,12 +99,15 @@ class SerialSolver {
             for (std::size_t step = 0; step < steps_; ++step) {
                 compute_rhs_bathy(U_, rhs_);
                 time_integrator_.compute_U1(U1_, U_, rhs_);
+                enforce_positivity(U1_, "U1", step);
 
                 compute_rhs_bathy(U1_, rhs_);
                 time_integrator_.compute_U2(U2_, U1_, U_, rhs_);
+                enforce_positivity(U2_, "U2", step);
 
                 compute_rhs_bathy(U2_, rhs_);
                 time_integrator_.compute_U_next(U_next_, U2_, U_, rhs_);
+                enforce_positivity(U_next_, "U3", step);
 
                 std::swap(U_, U_next_);
                 time += dt_;
@@ -269,6 +272,32 @@ class SerialSolver {
             return "Gaussian Hill";
         }
         return "UnknownBathymetry";
+    }
+    void enforce_positivity(State &U, const char *stage, std::size_t step) {
+        constexpr double h_floor = 1e-8;
+        std::size_t corrected = 0;
+
+        const int nG = grid_.nG();
+
+        for (int i = nG; i < nG + grid_.Nx(); ++i) {
+            for (int j = nG; j < nG + grid_.Ny(); ++j) {
+                if (U.h()(i, j) < h_floor) {
+                    U.h()(i, j) = h_floor;
+                    U.hu()(i, j) = 0.0;
+                    U.hv()(i, j) = 0.0;
+                    ++corrected;
+                }
+                if (!std::isfinite(U.h()(i, j)) || !std::isfinite(U.hu()(i, j)) ||
+                    !std::isfinite(U.hv()(i, j))) {
+                    throw std::runtime_error("non-finite state detected in positivity correction");
+                }
+            }
+        }
+
+        if (corrected > 0) {
+            std::cerr << "WARNING: positivity correction in " << stage << " at step " << step
+                      << " corrected " << corrected << " cells\n";
+        }
     }
 
   private:
