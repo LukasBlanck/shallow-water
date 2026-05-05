@@ -9,7 +9,7 @@ spatial_unit_y = "m"
 spatial_unit_h = "m"
 
 [bathymetry]
-type = "Flat"               # [Flat, GaussHill, None]
+type = "GaussHill"               # [Flat, GaussHill, None]
 b0 = 1.0                    # Flat, GaussHill
 bathy_x0 = 5.0
 bathy_y0 = 5.0
@@ -23,10 +23,10 @@ type = "ReflectingWalls"
 
 [initial_condition]
 type = "GaussInitial"       # [GaussInitial, StillWater, DamBreak, DamBreakRadial]
-h0 = 2.0                        # for GaussInitial OR StillWater OR DamBreak OR DamBreakRadial
-peak_height = 1.0               # GaussInitial
-x0 = 5.0                        # GaussInitial
-y0 = 5.0                        # GaussInitial
+h0 = 1.0                        # for GaussInitial OR StillWater OR DamBreak OR DamBreakRadial
+peak_height = 2.0               # GaussInitial
+x0 = 2.0                        # GaussInitial
+y0 = 7.0                        # GaussInitial
 sigma_x = 1                     # GaussInitial
 sigma_y = 1                   # GaussInitial
 dam_height = 5.0                # DamBreak OR DamBreakRadial
@@ -52,7 +52,7 @@ time_unit = "s"
 save_every = 10        # every * step gets written out
 
 [backend]
-type = "serial"
+type = "OptimizedSerial"     # [Serial, OptimizedSerial]
 threads = 2
 
 [sanity_checks]

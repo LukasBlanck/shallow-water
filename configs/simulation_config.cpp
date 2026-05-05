@@ -9,7 +9,8 @@
 namespace {
 
 BackendType parse_backend_type(const std::string &s) {
-    if (s == "serial") return BackendType::Serial;
+    if (s == "Serial") return BackendType::Serial;
+    if (s == "OptimizedSerial") return BackendType::OptimizedSerial;
     throw std::runtime_error("Unknown backend type: " + s);
 }
 

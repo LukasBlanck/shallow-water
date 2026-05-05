@@ -1,0 +1,442 @@
+FastHLLMUSCLBathySolver.run() {
+
+    // Data layout:
+    //
+    // Instead of:
+    //   State U = { Array2D h, Array2D hu, Array2D hv }
+    //
+    // use:
+    //   double[] h
+    //   double[] hu
+    //   double[] hv
+    //   double[] B
+    //
+    // All arrays are flat and row-major:
+    //   k = i * stride + j
+    //
+    // j is the inner loop because j is contiguous in memory.
+
+    initialize_flat_arrays();
+
+    write_initial_output();
+
+    while (t < t_end) {
+
+        compute_dt_from_CFL();
+
+        // ============================================================
+        // SSP-RK3 stage 1
+        // ============================================================
+
+        computeRHS(h, hu, hv, rhs_h, rhs_hu, rhs_hv) {
+
+            applyBC(h, hu, hv) {
+                // Reflecting walls directly on raw arrays.
+                //
+                // No State object.
+                // No Array2D operator().
+                // No CellState.
+                //
+                // Access is:
+                //   k = i * stride + j
+
+                for (ghost cells on left/right boundary) {
+                    h [ghost] = h [interior];
+                    hu[ghost] = -hu[interior];
+                    hv[ghost] = hv[interior];
+                }
+
+                for (ghost cells on bottom/top boundary) {
+                    h [ghost] = h [interior];
+                    hu[ghost] = hu[interior];
+                    hv[ghost] = -hv[interior];
+                }
+            }
+
+            compute_x_fluxes_hll_muscl_bathy(
+                h, hu, hv, B,
+                fxm_h, fxm_hu, fxm_hv,
+                fxp_h, fxp_hu, fxp_hv
+            ) {
+                // Loop over x-interfaces.
+                //
+                // One interface is between cells:
+                //   (i,j) and (i+1,j)
+                //
+                // Uses flat indexing:
+                //   k  = i     * stride + j
+                //   kr = (i+1) * stride + j = k + stride
+
+                for (i = nG - 1; i < nG + Nx; ++i) {
+                    for (j = nG; j < nG + Ny; ++j) {
+
+                        k  = i * stride + j;
+                        kr = k + stride;
+
+                        // ------------------------------------------------
+                        // Local free surface values
+                        // ------------------------------------------------
+                        //
+                        // Problem before:
+                        //   State W = U;
+                        //   W.h() += B;
+                        //
+                        // That made a full temporary grid.
+                        //
+                        // Now:
+                        //   eta is computed locally only where needed.
+
+                        eta_im1 = h[k - stride] + B[k - stride];
+                        eta_i   = h[k]          + B[k];
+                        eta_ip1 = h[kr]         + B[kr];
+                        eta_ip2 = h[kr+stride]  + B[kr+stride];
+
+                        // ------------------------------------------------
+                        // MUSCL reconstruction on scalars
+                        // ------------------------------------------------
+                        //
+                        // Problem before:
+                        //   CellState UL = reconstruction.U_L(U,i,j);
+                        //   CellState UR = reconstruction.U_R(U,i,j);
+                        //
+                        // Now:
+                        //   no CellState, no virtual calls, no Array2D access.
+
+                        eta_minus =
+                            eta_i
+                            + 0.5 * minmod(eta_i - eta_im1,
+                                           eta_ip1 - eta_i);
+
+                        eta_plus =
+                            eta_ip1
+                            - 0.5 * minmod(eta_ip1 - eta_i,
+                                           eta_ip2 - eta_ip1);
+
+                        hu_minus =
+                            hu[k]
+                            + 0.5 * minmod(hu[k] - hu[k-stride],
+                                           hu[kr] - hu[k]);
+
+                        hu_plus =
+                            hu[kr]
+                            - 0.5 * minmod(hu[kr] - hu[k],
+                                           hu[kr+stride] - hu[kr]);
+
+                        hv_minus =
+                            hv[k]
+                            + 0.5 * minmod(hv[k] - hv[k-stride],
+                                           hv[kr] - hv[k]);
+
+                        hv_plus =
+                            hv[kr]
+                            - 0.5 * minmod(hv[kr] - hv[k],
+                                           hv[kr+stride] - hv[kr]);
+
+                        // ------------------------------------------------
+                        // Hydrostatic reconstruction
+                        // ------------------------------------------------
+                        //
+                        // Preserve lake-at-rest balance:
+                        //   hu = 0, hv = 0, h + B = const
+
+                        b_minus = B[k];
+                        b_plus  = B[kr];
+                        b_star  = max(b_minus, b_plus);
+
+                        h_minus = max(0, eta_minus - b_minus);
+                        h_plus  = max(0, eta_plus  - b_plus);
+
+                        u_minus = safe_velocity(hu_minus, h_minus);
+                        v_minus = safe_velocity(hv_minus, h_minus);
+
+                        u_plus  = safe_velocity(hu_plus, h_plus);
+                        v_plus  = safe_velocity(hv_plus, h_plus);
+
+                        hs_minus = max(0, eta_minus - b_star);
+                        hs_plus  = max(0, eta_plus  - b_star);
+
+                        // Corrected states for HLL.
+                        //
+                        // Problem before:
+                        //   CellState U_minus_star(...)
+                        //   CellState U_plus_star(...)
+                        //
+                        // Now:
+                        //   scalar variables only.
+
+                        hL  = hs_minus;
+                        huL = hs_minus * u_minus;
+                        hvL = hs_minus * v_minus;
+
+                        hR  = hs_plus;
+                        huR = hs_plus * u_plus;
+                        hvR = hs_plus * v_plus;
+
+                        // ------------------------------------------------
+                        // Inline HLL flux
+                        // ------------------------------------------------
+                        //
+                        // Problem before:
+                        //   riemann_solver.x_flux(U_minus_star, U_plus_star)
+                        //   returns CellState
+                        //
+                        // Now:
+                        //   hll_x(...) writes scalar flux components.
+
+                        hll_x(hL, huL, hvL,
+                              hR, huR, hvR,
+                              fh, fhu, fhv);
+
+                        // ------------------------------------------------
+                        // Bathymetry pressure correction
+                        // ------------------------------------------------
+
+                        corr_minus =
+                            0.5 * g * (h_minus*h_minus
+                                     - hs_minus*hs_minus);
+
+                        corr_plus =
+                            0.5 * g * (h_plus*h_plus
+                                     - hs_plus*hs_plus);
+
+                        // ------------------------------------------------
+                        // Store corrected interface fluxes
+                        // ------------------------------------------------
+                        //
+                        // Still stores flux arrays in this version.
+                        // But storage is raw SoA and cache-friendly:
+                        //
+                        //   fxm_h[], fxm_hu[], fxm_hv[]
+                        //   fxp_h[], fxp_hu[], fxp_hv[]
+
+                        fxm_h [k] = fh;
+                        fxm_hu[k] = fhu + corr_minus;
+                        fxm_hv[k] = fhv;
+
+                        fxp_h [k] = fh;
+                        fxp_hu[k] = fhu + corr_plus;
+                        fxp_hv[k] = fhv;
+                    }
+                }
+            }
+
+            compute_y_fluxes_hll_muscl_bathy(
+                h, hu, hv, B,
+                fym_h, fym_hu, fym_hv,
+                fyp_h, fyp_hu, fyp_hv
+            ) {
+                // Same idea as x-fluxes, but the interface is:
+                //   (i,j) and (i,j+1)
+                //
+                // Since j is contiguous, k+1 is the upper/right neighbor
+                // in y-direction.
+
+                for (i = nG; i < nG + Nx; ++i) {
+                    for (j = nG - 1; j < nG + Ny; ++j) {
+
+                        k  = i * stride + j;
+                        kt = k + 1;
+
+                        eta_jm1 = h[k - 1] + B[k - 1];
+                        eta_j   = h[k]     + B[k];
+                        eta_jp1 = h[kt]    + B[kt];
+                        eta_jp2 = h[kt+1]  + B[kt+1];
+
+                        eta_minus =
+                            eta_j
+                            + 0.5 * minmod(eta_j - eta_jm1,
+                                           eta_jp1 - eta_j);
+
+                        eta_plus =
+                            eta_jp1
+                            - 0.5 * minmod(eta_jp1 - eta_j,
+                                           eta_jp2 - eta_jp1);
+
+                        hu_minus =
+                            hu[k]
+                            + 0.5 * minmod(hu[k] - hu[k-1],
+                                           hu[kt] - hu[k]);
+
+                        hu_plus =
+                            hu[kt]
+                            - 0.5 * minmod(hu[kt] - hu[k],
+                                           hu[kt+1] - hu[kt]);
+
+                        hv_minus =
+                            hv[k]
+                            + 0.5 * minmod(hv[k] - hv[k-1],
+                                           hv[kt] - hv[k]);
+
+                        hv_plus =
+                            hv[kt]
+                            - 0.5 * minmod(hv[kt] - hv[k],
+                                           hv[kt+1] - hv[kt]);
+
+                        b_minus = B[k];
+                        b_plus  = B[kt];
+                        b_star  = max(b_minus, b_plus);
+
+                        h_minus = max(0, eta_minus - b_minus);
+                        h_plus  = max(0, eta_plus  - b_plus);
+
+                        u_minus = safe_velocity(hu_minus, h_minus);
+                        v_minus = safe_velocity(hv_minus, h_minus);
+
+                        u_plus  = safe_velocity(hu_plus, h_plus);
+                        v_plus  = safe_velocity(hv_plus, h_plus);
+
+                        hs_minus = max(0, eta_minus - b_star);
+                        hs_plus  = max(0, eta_plus  - b_star);
+
+                        hL  = hs_minus;
+                        huL = hs_minus * u_minus;
+                        hvL = hs_minus * v_minus;
+
+                        hR  = hs_plus;
+                        huR = hs_plus * u_plus;
+                        hvR = hs_plus * v_plus;
+
+                        // HLL in y-direction.
+                        // Normal velocity is v instead of u.
+
+                        hll_y(hL, huL, hvL,
+                              hR, huR, hvR,
+                              gh, ghu, ghv);
+
+                        corr_minus =
+                            0.5 * g * (h_minus*h_minus
+                                     - hs_minus*hs_minus);
+
+                        corr_plus =
+                            0.5 * g * (h_plus*h_plus
+                                     - hs_plus*hs_plus);
+
+                        fym_h [k] = gh;
+                        fym_hu[k] = ghu;
+                        fym_hv[k] = ghv + corr_minus;
+
+                        fyp_h [k] = gh;
+                        fyp_hu[k] = ghu;
+                        fyp_hv[k] = ghv + corr_plus;
+                    }
+                }
+            }
+
+            apply_divergence(
+                fxm, fxp, fym, fyp,
+                rhs_h, rhs_hu, rhs_hv
+            ) {
+                // Problem before:
+                //   lhs.h()(i,j) =
+                //       -1/dx * (Fx_minus.h()(i,j)
+                //              - Fx_plus.h()(i-1,j))
+                //       -1/dy * (Fy_minus.h()(i,j)
+                //              - Fy_plus.h()(i,j-1));
+                //
+                // Many nested accessor calls.
+                //
+                // Now:
+                //   raw array indexing.
+
+                for (i = nG; i < nG + Nx; ++i) {
+                    for (j = nG; j < nG + Ny; ++j) {
+
+                        k   = i * stride + j;
+                        kmx = k - stride;
+                        kmy = k - 1;
+
+                        rhs_h[k] =
+                            -inv_dx * (fxm_h[k]  - fxp_h[kmx])
+                            -inv_dy * (fym_h[k]  - fyp_h[kmy]);
+
+                        rhs_hu[k] =
+                            -inv_dx * (fxm_hu[k] - fxp_hu[kmx])
+                            -inv_dy * (fym_hu[k] - fyp_hu[kmy]);
+
+                        rhs_hv[k] =
+                            -inv_dx * (fxm_hv[k] - fxp_hv[kmx])
+                            -inv_dy * (fym_hv[k] - fyp_hv[kmy]);
+                    }
+                }
+            }
+        }
+
+        // U1 = U + dt * RHS(U)
+        //
+        // Direct flat-array loop.
+        // No State arithmetic.
+        // No Array2D access.
+
+        for (k = 0; k < n_total; ++k) {
+            h1 [k] = h [k] + dt * rhs_h [k];
+            hu1[k] = hu[k] + dt * rhs_hu[k];
+            hv1[k] = hv[k] + dt * rhs_hv[k];
+        }
+
+        positivity_correction(h1, hu1, hv1);
+
+        // ============================================================
+        // SSP-RK3 stage 2
+        // ============================================================
+
+        computeRHS(h1, hu1, hv1, rhs_h, rhs_hu, rhs_hv);
+
+        for (k = 0; k < n_total; ++k) {
+            h2[k] =
+                0.75 * h[k]
+                + 0.25 * (h1[k] + dt * rhs_h[k]);
+
+            hu2[k] =
+                0.75 * hu[k]
+                + 0.25 * (hu1[k] + dt * rhs_hu[k]);
+
+            hv2[k] =
+                0.75 * hv[k]
+                + 0.25 * (hv1[k] + dt * rhs_hv[k]);
+        }
+
+        positivity_correction(h2, hu2, hv2);
+
+        // ============================================================
+        // SSP-RK3 stage 3
+        // ============================================================
+
+        computeRHS(h2, hu2, hv2, rhs_h, rhs_hu, rhs_hv);
+
+        for (k = 0; k < n_total; ++k) {
+            h[k] =
+                (1.0 / 3.0) * h[k]
+                + (2.0 / 3.0) * (h2[k] + dt * rhs_h[k]);
+
+            hu[k] =
+                (1.0 / 3.0) * hu[k]
+                + (2.0 / 3.0) * (hu2[k] + dt * rhs_hu[k]);
+
+            hv[k] =
+                (1.0 / 3.0) * hv[k]
+                + (2.0 / 3.0) * (hv2[k] + dt * rhs_hv[k]);
+        }
+
+        positivity_correction(h, hu, hv);
+
+        applyBC(h, hu, hv);
+
+        // Output / checks.
+        //
+        // If writer or sanity checks still expect State/Array2D,
+        // the optimized solver only converts/copies at output/check time,
+        // not inside the numerical hot path.
+
+        if (should_write_output) {
+            convert_flat_arrays_to_State_for_writer();
+            writer.write(...);
+        }
+
+        if (should_run_sanity_checks) {
+            convert_flat_arrays_to_State_for_checks();
+            sanity_checks(...);
+        }
+
+        t += dt;
+    }
+}
