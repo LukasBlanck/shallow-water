@@ -135,6 +135,9 @@ class SerialSolver {
     }
 
     void run() {
+        std::cout << std::unitbuf;      // writes terminal output on cluster immediately
+        std::cerr << std::unitbuf;
+
         // Check if dt is stable. This is reported separately and is not included in the
         // solver-time percentages, because it is a one-time pre-loop check.
         double dt_stable = 0.0;
