@@ -129,7 +129,7 @@ class FastHLLMUSCLBathySolver {
     void run() {
         std::cout << std::unitbuf;
         std::cerr << std::unitbuf;
-        
+
         double dt_stable = 0.0;
         {
             const auto start = FastSolverTimingStats::now();

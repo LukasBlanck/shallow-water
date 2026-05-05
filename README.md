@@ -58,6 +58,14 @@ Compile and run:
 ```
 Currently, this only works for my setup with `-DCMAKE_PREFIX_PATH=/opt/local`. If necessary you can adopt this in `run.sh`.
 
+#### LEO3E
+Compile and run on leo3e:
+
+```
+./run_leo3e.sh
+tail -f swe_serial.o<JOB-ID>
+```
+
 ---
 Visualization:
 ```

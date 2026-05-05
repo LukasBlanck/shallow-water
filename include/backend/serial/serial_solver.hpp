@@ -135,7 +135,7 @@ class SerialSolver {
     }
 
     void run() {
-        std::cout << std::unitbuf;      // writes terminal output on cluster immediately
+        std::cout << std::unitbuf; // writes terminal output on cluster immediately
         std::cerr << std::unitbuf;
 
         // Check if dt is stable. This is reported separately and is not included in the

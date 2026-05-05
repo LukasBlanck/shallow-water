@@ -1,7 +1,7 @@
 #pragma once
-#include <vector> // size is not known at compile time -> vector
 #include <stdexcept>
 #include <string>
+#include <vector> // size is not known at compile time -> vector
 
 class Array2D {
   public:
