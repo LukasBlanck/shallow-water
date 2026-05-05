@@ -29,12 +29,74 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdio>
+#include <iomanip>
 #include <iostream>
 #include <memory>
 #include <stdexcept>
 #include <string>
 #include <type_traits>
 #include <vector>
+
+struct SolverTimingStats {
+    using Clock = std::chrono::steady_clock;
+
+    double cfl_check = 0.0;
+    double boundary_conditions = 0.0;
+    double x_fluxes = 0.0;
+    double y_fluxes = 0.0;
+    double finite_volume = 0.0;
+    double time_integration = 0.0;
+    double positivity_correction = 0.0;
+    double output = 0.0;
+    double sanity_checks = 0.0;
+
+    std::size_t rhs_calls = 0;
+    std::size_t time_steps = 0;
+
+    static Clock::time_point now() { return Clock::now(); }
+
+    static double seconds_since(const Clock::time_point start) {
+        return std::chrono::duration<double>(Clock::now() - start).count();
+    }
+
+    double measured_solver_time() const {
+        return boundary_conditions + x_fluxes + y_fluxes + finite_volume + time_integration +
+               positivity_correction + output + sanity_checks;
+    }
+
+    void print_summary() const {
+        const double total = measured_solver_time();
+
+        std::cout << "\n========== Solver timing summary ==========" << '\n';
+        std::cout << "time steps           : " << time_steps << '\n';
+        std::cout << "rhs calls            : " << rhs_calls << '\n';
+        std::cout << "CFL check            : " << cfl_check << " s" << '\n';
+        std::cout << "measured solver time : " << total << " s" << '\n';
+
+        if (total <= 0.0) {
+            std::cout << "No positive measured solver time.\n";
+            std::cout << "===========================================\n";
+            return;
+        }
+
+        const auto print_row = [total](const char *name, const double seconds) {
+            const double percent = 100.0 * seconds / total;
+            std::cout << std::left << std::setw(24) << name << std::right << std::setw(12)
+                      << seconds << " s  " << std::setw(8) << percent << " %\n";
+        };
+
+        std::cout << std::fixed << std::setprecision(6);
+        print_row("boundary conditions", boundary_conditions);
+        print_row("x fluxes", x_fluxes);
+        print_row("y fluxes", y_fluxes);
+        print_row("finite volume", finite_volume);
+        print_row("time integration", time_integration);
+        print_row("positivity correction", positivity_correction);
+        print_row("output", output);
+        print_row("sanity checks", sanity_checks);
+        std::cout << "===========================================\n";
+    }
+};
 
 template <class Boundary, class Reconstruction, class Riemann, class TimeIntegrator,
           class Bathymetry>
@@ -73,8 +135,15 @@ class SerialSolver {
     }
 
     void run() {
-        // check if dt is stable
-        const double dt_stable = compute_stable_dt(U_, grid_, cfg_.time.cfl);
+        // Check if dt is stable. This is reported separately and is not included in the
+        // solver-time percentages, because it is a one-time pre-loop check.
+        double dt_stable = 0.0;
+        {
+            const auto start = SolverTimingStats::now();
+            dt_stable = compute_stable_dt(U_, grid_, cfg_.time.cfl);
+            timing_.cfl_check += SolverTimingStats::seconds_since(start);
+        }
+
         if (dt_ > dt_stable) {
             throw std::runtime_error("Time step too large: dt = " + std::to_string(dt_) +
                                      ", but CFL requires dt <= " + std::to_string(dt_stable));
@@ -82,41 +151,64 @@ class SerialSolver {
 
         double time = 0.0;
 
-        // ETA
+        // ETA uses wall time and therefore still includes output/sanity checks, just like before.
         const bool estimate_eta = cfg_.output.compute_eta;
         const std::size_t eta_probe_step = std::min<std::size_t>(100, steps_);
         bool eta_printed = false;
         const auto start_wall = std::chrono::steady_clock::now();
 
-        // output and sanity check for initial setup
-        writer_.write_snapshot(U_, time, dt_, riemann_name_, reconstruction_name_,
-                               time_integrator_name_, boundary_name_, bathymetry_name_);
-        run_sanity_checks(time, 0);
+        {
+            const auto start = SolverTimingStats::now();
+            writer_.write_snapshot(U_, time, dt_, riemann_name_, reconstruction_name_,
+                                   time_integrator_name_, boundary_name_, bathymetry_name_);
+            timing_.output += SolverTimingStats::seconds_since(start);
+        }
+
+        {
+            const auto start = SolverTimingStats::now();
+            run_sanity_checks(time, 0);
+            timing_.sanity_checks += SolverTimingStats::seconds_since(start);
+        }
 
         if constexpr (Bathymetry::enabled) {
             printf("\nINFO: Bathymetry enabled.\n\n");
-            // SSP-RK3
+
             for (std::size_t step = 0; step < steps_; ++step) {
                 compute_rhs_bathy(U_, rhs_);
-                time_integrator_.compute_U1(U1_, U_, rhs_);
-                enforce_positivity(U1_, "U1", step);
+                {
+                    const auto start = SolverTimingStats::now();
+                    time_integrator_.compute_U1(U1_, U_, rhs_);
+                    timing_.time_integration += SolverTimingStats::seconds_since(start);
+                }
+                enforce_positivity_timed(U1_, "U1", step);
 
                 compute_rhs_bathy(U1_, rhs_);
-                time_integrator_.compute_U2(U2_, U1_, U_, rhs_);
-                enforce_positivity(U2_, "U2", step);
+                {
+                    const auto start = SolverTimingStats::now();
+                    time_integrator_.compute_U2(U2_, U1_, U_, rhs_);
+                    timing_.time_integration += SolverTimingStats::seconds_since(start);
+                }
+                enforce_positivity_timed(U2_, "U2", step);
 
                 compute_rhs_bathy(U2_, rhs_);
-                time_integrator_.compute_U_next(U_next_, U2_, U_, rhs_);
-                enforce_positivity(U_next_, "U3", step);
+                {
+                    const auto start = SolverTimingStats::now();
+                    time_integrator_.compute_U_next(U_next_, U2_, U_, rhs_);
+                    timing_.time_integration += SolverTimingStats::seconds_since(start);
+                }
+                enforce_positivity_timed(U_next_, "U3", step);
 
                 std::swap(U_, U_next_);
                 time += dt_;
 
-                bc_.apply_BC(U_);
+                {
+                    const auto start = SolverTimingStats::now();
+                    bc_.apply_BC(U_);
+                    timing_.boundary_conditions += SolverTimingStats::seconds_since(start);
+                }
 
+                ++timing_.time_steps;
                 const std::size_t step_number = step + 1;
-
-                // ETA
 
                 if (estimate_eta && !eta_printed && step_number == eta_probe_step) {
                     const auto now = std::chrono::steady_clock::now();
@@ -129,33 +221,55 @@ class SerialSolver {
                     eta_printed = true;
                 }
 
-                // output & sanity checks
                 if (step_number % save_every_ == 0 || step_number == steps_) {
-                    writer_.write_snapshot(U_, time);
-                    run_sanity_checks(time, step_number);
+                    {
+                        const auto start = SolverTimingStats::now();
+                        writer_.write_snapshot(U_, time);
+                        timing_.output += SolverTimingStats::seconds_since(start);
+                    }
+
+                    {
+                        const auto start = SolverTimingStats::now();
+                        run_sanity_checks(time, step_number);
+                        timing_.sanity_checks += SolverTimingStats::seconds_since(start);
+                    }
                 }
             }
 
         } else {
-            // SSP-RK3
             for (std::size_t step = 0; step < steps_; ++step) {
                 compute_rhs(U_, rhs_);
-                time_integrator_.compute_U1(U1_, U_, rhs_);
+                {
+                    const auto start = SolverTimingStats::now();
+                    time_integrator_.compute_U1(U1_, U_, rhs_);
+                    timing_.time_integration += SolverTimingStats::seconds_since(start);
+                }
 
                 compute_rhs(U1_, rhs_);
-                time_integrator_.compute_U2(U2_, U1_, U_, rhs_);
+                {
+                    const auto start = SolverTimingStats::now();
+                    time_integrator_.compute_U2(U2_, U1_, U_, rhs_);
+                    timing_.time_integration += SolverTimingStats::seconds_since(start);
+                }
 
                 compute_rhs(U2_, rhs_);
-                time_integrator_.compute_U_next(U_next_, U2_, U_, rhs_);
+                {
+                    const auto start = SolverTimingStats::now();
+                    time_integrator_.compute_U_next(U_next_, U2_, U_, rhs_);
+                    timing_.time_integration += SolverTimingStats::seconds_since(start);
+                }
 
                 std::swap(U_, U_next_);
                 time += dt_;
 
-                bc_.apply_BC(U_);
+                {
+                    const auto start = SolverTimingStats::now();
+                    bc_.apply_BC(U_);
+                    timing_.boundary_conditions += SolverTimingStats::seconds_since(start);
+                }
 
+                ++timing_.time_steps;
                 const std::size_t step_number = step + 1;
-
-                // ETA
 
                 if (estimate_eta && !eta_printed && step_number == eta_probe_step) {
                     const auto now = std::chrono::steady_clock::now();
@@ -168,35 +282,83 @@ class SerialSolver {
                     eta_printed = true;
                 }
 
-                // output & sanity checks
                 if (step_number % save_every_ == 0 || step_number == steps_) {
-                    writer_.write_snapshot(U_, time);
-                    run_sanity_checks(time, step_number);
+                    {
+                        const auto start = SolverTimingStats::now();
+                        writer_.write_snapshot(U_, time);
+                        timing_.output += SolverTimingStats::seconds_since(start);
+                    }
+
+                    {
+                        const auto start = SolverTimingStats::now();
+                        run_sanity_checks(time, step_number);
+                        timing_.sanity_checks += SolverTimingStats::seconds_since(start);
+                    }
                 }
             }
         }
+
+        timing_.print_summary();
     }
 
   private:
-    // serial helper functions
     void compute_rhs(State &U_in, State &L_out) {
-        bc_.apply_BC(U_in);
-        flux_assembly_.compute_x_fluxes(U_in, recon_, riemann_, x_flux_field_, grid_);
-        flux_assembly_.compute_y_fluxes(U_in, recon_, riemann_, y_flux_field_, grid_);
-        fv_.apply_spatial_operator(L_out, x_flux_field_, y_flux_field_);
+        ++timing_.rhs_calls;
+
+        {
+            const auto start = SolverTimingStats::now();
+            bc_.apply_BC(U_in);
+            timing_.boundary_conditions += SolverTimingStats::seconds_since(start);
+        }
+
+        {
+            const auto start = SolverTimingStats::now();
+            flux_assembly_.compute_x_fluxes(U_in, recon_, riemann_, x_flux_field_, grid_);
+            timing_.x_fluxes += SolverTimingStats::seconds_since(start);
+        }
+
+        {
+            const auto start = SolverTimingStats::now();
+            flux_assembly_.compute_y_fluxes(U_in, recon_, riemann_, y_flux_field_, grid_);
+            timing_.y_fluxes += SolverTimingStats::seconds_since(start);
+        }
+
+        {
+            const auto start = SolverTimingStats::now();
+            fv_.apply_spatial_operator(L_out, x_flux_field_, y_flux_field_);
+            timing_.finite_volume += SolverTimingStats::seconds_since(start);
+        }
     }
 
     void compute_rhs_bathy(State &U_in, State &L_out) {
-        bc_.apply_BC(U_in);
+        ++timing_.rhs_calls;
 
-        flux_assembly_bathy_.compute_x_fluxes(U_in, B_, recon_, riemann_, x_flux_minus_,
-                                              x_flux_plus_, grid_);
+        {
+            const auto start = SolverTimingStats::now();
+            bc_.apply_BC(U_in);
+            timing_.boundary_conditions += SolverTimingStats::seconds_since(start);
+        }
 
-        flux_assembly_bathy_.compute_y_fluxes(U_in, B_, recon_, riemann_, y_flux_minus_,
-                                              y_flux_plus_, grid_);
+        {
+            const auto start = SolverTimingStats::now();
+            flux_assembly_bathy_.compute_x_fluxes(U_in, B_, recon_, riemann_, x_flux_minus_,
+                                                  x_flux_plus_, grid_);
+            timing_.x_fluxes += SolverTimingStats::seconds_since(start);
+        }
 
-        fv_bathy_.apply_spatial_operator(L_out, x_flux_minus_, x_flux_plus_, y_flux_minus_,
-                                         y_flux_plus_);
+        {
+            const auto start = SolverTimingStats::now();
+            flux_assembly_bathy_.compute_y_fluxes(U_in, B_, recon_, riemann_, y_flux_minus_,
+                                                  y_flux_plus_, grid_);
+            timing_.y_fluxes += SolverTimingStats::seconds_since(start);
+        }
+
+        {
+            const auto start = SolverTimingStats::now();
+            fv_bathy_.apply_spatial_operator(L_out, x_flux_minus_, x_flux_plus_, y_flux_minus_,
+                                             y_flux_plus_);
+            timing_.finite_volume += SolverTimingStats::seconds_since(start);
+        }
     }
 
     void run_sanity_checks(double time, std::size_t step) {
@@ -273,6 +435,13 @@ class SerialSolver {
         }
         return "UnknownBathymetry";
     }
+
+    void enforce_positivity_timed(State &U, const char *stage, std::size_t step) {
+        const auto start = SolverTimingStats::now();
+        enforce_positivity(U, stage, step);
+        timing_.positivity_correction += SolverTimingStats::seconds_since(start);
+    }
+
     void enforce_positivity(State &U, const char *stage, std::size_t step) {
         constexpr double h_floor = 1e-8;
         std::size_t corrected = 0;
@@ -335,6 +504,8 @@ class SerialSolver {
     NetCDFWriter writer_;
     std::vector<std::unique_ptr<SanityCheck>> sanity_checks_;
     std::unique_ptr<SanityCheckNetCDFWriter> sanity_writer_;
+
+    SolverTimingStats timing_;
 
     const std::string riemann_name_;
     const std::string reconstruction_name_;
