@@ -30,7 +30,7 @@ Current / planned project scope:
 
 ---
 - [x] Non-flat bathymetry
-- [ ] CMake-based build for arbitrary laptop setup 
+- [x] CMake-based build for laptop setup
 - [ ] CMake-based build for cluster setup 
 - [ ] Highly optimized HLL-MUSCL solver:
     - [x] Serial
@@ -52,11 +52,13 @@ To build and run the project, you currently need:
 - **Python 3**
 - NetCDF library
 
-Compile and run:
+#### Laptop
+
+Compile and run on laptop:
 ```
 ./run.sh
 ```
-Currently, this only works for my setup with `-DCMAKE_PREFIX_PATH=/opt/local`. If necessary you can adopt this in `run.sh`.
+
 
 #### LEO3E
 Compile and run on leo3e:
