@@ -14,34 +14,101 @@
 
 #include <filesystem>
 
+#if USE_OPENMP
+#include "include/backend/openmp/fast_hll_muscl_bathy_omp_solver.hpp"
+#endif
+
 class SolverAssembly {
 
   public:
     SolverAssembly(const std::filesystem::path &path) : cfg_(load_config(path)) {}
 
     void run() {
-
         validate_config();
-
         switch (cfg_.backend.type) {
 
         case BackendType::Serial:
-
             run_serial();
-
             return;
 
         case BackendType::OptimizedSerial:
-
             run_optimized_serial();
-
             return;
+
+        case BackendType::OpenMP: {
+#if USE_OPENMP
+            warn_if_ignored_optimized_settings(cfg_, "OptimizedSerial");
+
+            // use the .toml specified threads
+            const int threads = choose_openmp_threads();
+            if (threads > 0) {
+                omp_set_num_threads(threads);
+            }
+
+            if (cfg_.bathymetry.type == BathymetryType::Flat ||
+                cfg_.bathymetry.type == BathymetryType::GaussHill) {
+
+                FastHLLMUSCLBathyOpenMPSolver solver(cfg_);
+                solver.run();
+                return;
+            }
+
+            throw std::runtime_error("Unsupported OpenMP optimized solver combination");
+#else
+            throw std::runtime_error(
+                "OpenMP backend was requested in simulation_config.toml, but this binary "
+                "was built without OpenMP. Either install OpenMP and rebuild, or set "
+                "[backend] type = \"OptimizedSerial\" or type = \"Serial\".");
+#endif
+        }
         }
 
         throw std::runtime_error("Unsupported backend");
     }
 
   private:
+    inline void warn_if_ignored_optimized_settings(const SimulationConfig &cfg,
+                                                   const std::string &backend_name) {
+        bool warned = false;
+
+        auto begin_warning = [&]() {
+            if (!warned) {
+                std::cerr << "Warning: backend.type = \"" << backend_name
+                          << "\" uses a fixed optimized solver configuration:\n"
+                          << "  reconstruction = MUSCL\n"
+                          << "  riemann        = HLL\n"
+                          << "  time           = SSPRK3\n"
+                          << "  boundary       = ReflectingWalls\n"
+                          << "Some [solver] settings from the config may be ignored.\n\n";
+                warned = true;
+            }
+        };
+
+        if (cfg.solver.reconstruction != ReconstructionType::MUSCL) {
+            begin_warning();
+            std::cerr << "  Ignored reconstruction setting from config.\n";
+        }
+        if (cfg.boundary.type != BoundaryType::ReflectingWalls) {
+            begin_warning();
+            std::cerr << "  Ignored boundarytype setting from config.\n";
+        }
+
+        if (cfg.solver.riemann != RiemannType::HLL) {
+            begin_warning();
+            std::cerr << "  Ignored riemann setting from config.\n";
+        }
+
+        if (cfg.solver.time != TimeIntegratorType::SSPRK3) {
+            begin_warning();
+            std::cerr << "  Ignored time-integrator setting from config.\n";
+        }
+
+        if (cfg.bathymetry.type == BathymetryType::None) {
+            begin_warning();
+            std::cerr << "  Ignored bathymetry setting from config.\n"
+                      << "For None-like Bathymetry choose flat with b0 = 0";
+        }
+    }
     SimulationConfig cfg_;
 
     void validate_config() const {
@@ -170,39 +237,22 @@ class SolverAssembly {
             }
         }
         if (cfg_.backend.type == BackendType::Serial && cfg_.backend.threads != 1) {
-            // ignore, warn, or throw depending your design
+            // ignore, warn, or throw depending design
         }
     }
 
     void run_optimized_serial() {
+        warn_if_ignored_optimized_settings(cfg_, "OptimizedSerial");
 
-        if (cfg_.boundary.type == BoundaryType::ReflectingWalls &&
-
-            cfg_.solver.reconstruction == ReconstructionType::MUSCL &&
-            cfg_.solver.riemann == RiemannType::HLL &&
-
-            cfg_.solver.time == TimeIntegratorType::SSPRK3 &&
-
-            (cfg_.bathymetry.type == BathymetryType::Flat ||
-
-             cfg_.bathymetry.type == BathymetryType::GaussHill)) {
+        if (cfg_.bathymetry.type == BathymetryType::Flat ||
+            cfg_.bathymetry.type == BathymetryType::GaussHill) {
 
             FastHLLMUSCLBathySolver solver(cfg_);
-
             solver.run();
-
             return;
         }
 
-        throw std::runtime_error(
-
-            "Unsupported optimized serial solver combination. "
-
-            "OptimizedSerial currently supports only "
-
-            "ReflectingWalls + MUSCL + HLL + SSPRK3 + Flat/GaussHill bathymetry."
-
-        );
+        throw std::runtime_error("Unsupported optimized serial solver combination. ");
     }
 
     void run_serial() {
@@ -379,4 +429,30 @@ class SolverAssembly {
 
         throw std::runtime_error("Unsupported serial solver combination");
     }
+#if USE_OPENMP
+    int choose_openmp_threads() const {
+        const int requested = cfg_.backend.threads;
+        const int available = omp_get_num_procs();
+
+        if (requested < 0) {
+            throw std::runtime_error(
+                "backend.threads must be >= 0. Use 0 for OpenMP/default environment.");
+        }
+
+        if (requested == 0) {
+            std::cerr << "OpenMP: using environment/default thread count. "
+                      << "omp_get_max_threads() = " << omp_get_max_threads()
+                      << ", omp_get_num_procs() = " << available << "\n";
+            return 0;
+        }
+
+        if (requested > available) {
+            std::cerr << "Warning: backend.threads = " << requested << " requested, but only "
+                      << available << " processors reported by OpenMP. Clamping to " << available
+                      << " threads.\n";
+            return available;
+        }
+        return 0;
+    }
+#endif
 };

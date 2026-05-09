@@ -1,3 +1,5 @@
+#!/bin/bash
+import os
 import xarray as xr
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation

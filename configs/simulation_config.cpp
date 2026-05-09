@@ -11,6 +11,7 @@ namespace {
 BackendType parse_backend_type(const std::string &s) {
     if (s == "Serial") return BackendType::Serial;
     if (s == "OptimizedSerial") return BackendType::OptimizedSerial;
+    if (s == "OpenMP") return BackendType::OpenMP;
     throw std::runtime_error("Unknown backend type: " + s);
 }
 

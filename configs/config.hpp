@@ -4,7 +4,7 @@
 #include <filesystem>
 #include <string>
 
-enum class BackendType { Serial, OptimizedSerial };
+enum class BackendType { Serial, OptimizedSerial, OpenMP };
 
 enum class BoundaryType { ReflectingWalls };
 

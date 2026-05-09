@@ -1,15 +1,16 @@
 #!/bin/bash
-#$ -N swe_serial
+#$ -N swe_simulation
 #$ -q short.q,std.q
 #$ -cwd
 #$ -j yes
-#$ -l h_rt=0:60:0
-#$ -pe openmp 1
+#$ -l h_rt=0:20:0
+#$ -pe openmp 4
 
 set -euo pipefail
 
-CONFIG_FILE="${1:-simulation_config.toml}"
+CONFIG_FILE="simulation_config.toml"
 EXECUTABLE="./build/my_project"
+BUILD_TYPE="${BUILD_TYPE:-Release}"
 
 echo "============================================================"
 echo "Job started on: $(date)"
@@ -17,20 +18,24 @@ echo "Host: $(hostname)"
 echo "Working directory: $(pwd)"
 echo "Config file: ${CONFIG_FILE}"
 echo "NSLOTS: ${NSLOTS:-1}"
+echo "BUILD_TYPE: ${BUILD_TYPE}"
 echo "============================================================"
+
+# ============================================================
+# Modules
+# ============================================================
 
 echo "Loading modules..."
 module purge
 module load gcc/10.3.0
 module load cmake/3.15.3
 
-# Important:
-# This is the NetCDF C module against which your local netcdf-cxx4 was built.
-# Do not switch this to netcdf-4/4.6.1.
+# NetCDF C module.
+# Keep this consistent with your local netcdf-cxx4 installation.
 module load netcdf-4/4.3.3.1
 
 # ============================================================
-# Normalize NetCDF C from module
+# NetCDF C from module
 # ============================================================
 
 if [[ -n "${NETCDF:-}" ]]; then
@@ -51,7 +56,7 @@ if [[ -n "${UIBK_NETCDF_4_LIB:-}" ]]; then
 fi
 
 # ============================================================
-# Normalize HDF5 from module dependency
+# HDF5 from NetCDF dependency
 # ============================================================
 
 if [[ -n "${UIBK_HDF5_INC:-}" ]]; then
@@ -79,6 +84,42 @@ export CPATH="${NETCDF_CXX_INCLUDE_DIR}:${CPATH:-}"
 export LIBRARY_PATH="${NETCDF_CXX_LIBRARY_DIR}:${LIBRARY_PATH:-}"
 export LD_LIBRARY_PATH="${NETCDF_CXX_LIBRARY_DIR}:${LD_LIBRARY_PATH:-}"
 export PKG_CONFIG_PATH="${NETCDF_CXX_LIBRARY_DIR}/pkgconfig:${PKG_CONFIG_PATH:-}"
+
+# ============================================================
+# OpenMP runtime settings
+# ============================================================
+#
+# This does NOT force OpenMP compilation.
+#
+# CMake decides whether OpenMP is available:
+#
+#   OpenMP found:
+#       builds with OpenMP
+#       backend.type = "OpenMP" works
+#
+#   OpenMP not found:
+#       builds without OpenMP
+#       CMake prints warning
+#       backend.type = "OpenMP" throws runtime error from C++
+#
+#   OpenMP manually disabled in CMake:
+#       builds without OpenMP
+#       backend.type = "OpenMP" throws runtime error from C++
+#
+# This script only tells the executable how many threads the scheduler gave it.
+
+export OMP_NUM_THREADS="${NSLOTS:-1}"
+export OMP_PROC_BIND=true
+export OMP_PLACES=cores
+export OMP_DISPLAY_ENV=false
+
+echo "============================================================"
+echo "OpenMP runtime settings"
+echo "============================================================"
+echo "OMP_NUM_THREADS=${OMP_NUM_THREADS}"
+echo "OMP_PROC_BIND=${OMP_PROC_BIND}"
+echo "OMP_PLACES=${OMP_PLACES}"
+echo "OMP_DISPLAY_ENV=${OMP_DISPLAY_ENV}"
 
 # ============================================================
 # Diagnostics
@@ -149,6 +190,10 @@ echo "ncxx4-config:"
 which ncxx4-config || true
 ncxx4-config --all 2>/dev/null || true
 
+# ============================================================
+# Build
+# ============================================================
+
 echo "============================================================"
 echo "Building project inside the job"
 echo "============================================================"
@@ -156,7 +201,9 @@ echo "============================================================"
 rm -rf build
 
 cmake -S . -B build \
-    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" \
+    -DENABLE_OPENMP=ON \
+    -DREQUIRE_OPENMP=OFF \
     -DNETCDF_ROOT="${NETCDF_ROOT:-}" \
     -DNETCDF_INCLUDE_DIR="${NETCDF_INCLUDE_DIR:-}" \
     -DNETCDF_LIBRARY_DIR="${NETCDF_LIBRARY_DIR:-}" \
@@ -172,6 +219,14 @@ if [[ ! -x "${EXECUTABLE}" ]]; then
     find build -maxdepth 3 -type f -executable || true
     exit 1
 fi
+
+# ============================================================
+# Run
+# ============================================================
+
+echo "============================================================"
+echo "Running simulation"
+echo "============================================================"
 
 "${EXECUTABLE}" "${CONFIG_FILE}"
 

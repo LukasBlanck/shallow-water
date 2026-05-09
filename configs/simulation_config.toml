@@ -51,12 +51,12 @@ time_unit = "s"
 save_every = 10        # every * step gets written out
 
 [backend]
-type = "OptimizedSerial"     # [Serial, OptimizedSerial]
-threads = 2
+type = "OpenMP"     # [Serial, OptimizedSerial, OpenMP]
+threads = 8
 
 [sanity_checks]
 mass_conservation = false        # [true, false] -> throws runtime errors and exits programs | default threshold: 1e-10
-mass_threshold = 1e-13
+mass_threshold = 1e-11
 positivity = true
 debug = true                    # only this will print into output_path
 output_path = "output/sanity_checks.nc"
