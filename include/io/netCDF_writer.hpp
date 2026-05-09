@@ -17,8 +17,7 @@ class NetCDFWriter {
 
     void write_snapshot(const State &U, double time,
                         double dt = std::numeric_limits<double>::quiet_NaN(),
-                        const std::string &backend = "",
-                        const std::string &riemann_solver = "",
+                        const std::string &backend = "", const std::string &riemann_solver = "",
                         const std::string &reconstruction = "",
                         const std::string &time_integrator = "",
                         const std::string &boundary_condition = "",

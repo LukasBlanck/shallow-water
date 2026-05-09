@@ -98,8 +98,7 @@ void NetCDFWriter::write_bathymetry(const Array2D &B) {
 }
 
 void NetCDFWriter::write_snapshot(const State &U, double time, double dt,
-                                  const std::string &backend,
-                                  const std::string &riemann_solver,
+                                  const std::string &backend, const std::string &riemann_solver,
                                   const std::string &reconstruction,
                                   const std::string &time_integrator,
                                   const std::string &boundary_condition,

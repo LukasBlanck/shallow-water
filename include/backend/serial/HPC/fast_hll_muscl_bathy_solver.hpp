@@ -153,8 +153,9 @@ class FastHLLMUSCLBathySolver {
         {
             const auto start = FastSolverTimingStats::now();
             fill_io_state();
-            writer_.write_snapshot(io_state_, time, dt_, backend_name_from_cfg(cfg_), "HLL", "MUSCL", "SSPRK3",
-                                   "Reflecting Walls", bathymetry_name_from_cfg(cfg_));
+            writer_.write_snapshot(io_state_, time, dt_, backend_name_from_cfg(cfg_), "HLL",
+                                   "MUSCL", "SSPRK3", "Reflecting Walls",
+                                   bathymetry_name_from_cfg(cfg_));
             timing_.output += FastSolverTimingStats::seconds_since(start);
         }
 
@@ -444,10 +445,9 @@ class FastHLLMUSCLBathySolver {
 
         return std::make_unique<SanityCheckNetCDFWriter>(
             cfg.sanity_checks.output_path.string(), cfg.time.time_unit, cfg.mesh.spatial_unit_h,
-            cfg.time.save_every, dt, backend_name_from_cfg(cfg), "HLL", "MUSCL", "SSPRK3", "Reflecting Walls",
-            bathymetry_name_from_cfg(cfg));
+            cfg.time.save_every, dt, backend_name_from_cfg(cfg), "HLL", "MUSCL", "SSPRK3",
+            "Reflecting Walls", bathymetry_name_from_cfg(cfg));
     }
-
 
   private:
     const SimulationConfig cfg_;
