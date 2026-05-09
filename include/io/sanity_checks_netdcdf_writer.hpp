@@ -5,7 +5,7 @@
 class SanityCheckNetCDFWriter {
   public:
     SanityCheckNetCDFWriter(const std::string &path, const std::string &time_unit,
-                            const std::string &h_unit, int save_every, double dt,
+                            const std::string &h_unit, int save_every, double dt, const std::string &backend_name,
                             const std::string &riemann_solver, const std::string &reconstruction,
                             const std::string &time_integrator,
                             const std::string &boundary_condition, const std::string &bathymetry);
@@ -21,6 +21,7 @@ class SanityCheckNetCDFWriter {
     std::string h_unit_;
     int save_every_;
     double dt_;
+    std::string backend_name_;
     std::string riemann_solver_;
     std::string reconstruction_;
     std::string time_integrator_;

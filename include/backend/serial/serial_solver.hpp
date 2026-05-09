@@ -1,6 +1,7 @@
 #pragma once
 
 #include "configs/config.hpp"
+#include "configs/parse_config_helper.hpp"
 
 #include "include/backend/serial/finite_volume/finite_volume.hpp"
 #include "include/backend/serial/finite_volume/finite_volume_bathy.hpp"
@@ -114,12 +115,14 @@ class SerialSolver {
           writer_(cfg.output.path.string(), grid_, cfg.mesh.spatial_unit_x, cfg.mesh.spatial_unit_y,
                   cfg.mesh.spatial_unit_h, cfg.time.time_unit, cfg.time.save_every),
           sanity_checks_(make_sanity_checks(cfg)),
-          sanity_writer_(make_sanity_writer(
-              cfg, dt_, riemann_name_static(), reconstruction_name_static(),
-              time_integrator_name_static(), boundary_name_static(), bathymetry_name_static())),
+          sanity_writer_(make_sanity_writer(cfg, dt_, backend_name_from_cfg(cfg_),
+                                            riemann_name_static(), reconstruction_name_static(),
+                                            time_integrator_name_static(), boundary_name_static(),
+                                            bathymetry_name_static())),
           riemann_name_(riemann_name_static()), reconstruction_name_(reconstruction_name_static()),
           time_integrator_name_(time_integrator_name_static()),
-          bathymetry_name_(bathymetry_name_static()), boundary_name_(boundary_name_static()) {
+          bathymetry_name_(bathymetry_name_static()), boundary_name_(boundary_name_static()),
+          backend_name_(backend_name_from_cfg(cfg_)) {
 
         apply_bathymetry(cfg_, grid_, B_);
         bc_.apply_BC(B_);
@@ -162,8 +165,9 @@ class SerialSolver {
 
         {
             const auto start = SolverTimingStats::now();
-            writer_.write_snapshot(U_, time, dt_, riemann_name_, reconstruction_name_,
-                                   time_integrator_name_, boundary_name_, bathymetry_name_);
+            writer_.write_snapshot(U_, time, dt_, backend_name_, riemann_name_,
+                                   reconstruction_name_, time_integrator_name_, boundary_name_,
+                                   bathymetry_name_);
             timing_.output += SolverTimingStats::seconds_since(start);
         }
 
@@ -371,9 +375,10 @@ class SerialSolver {
     }
 
     static std::unique_ptr<SanityCheckNetCDFWriter>
-    make_sanity_writer(const SimulationConfig &cfg, double dt, const std::string &riemann_solver,
-                       const std::string &reconstruction, const std::string &time_integrator,
-                       const std::string &boundary_condition, const std::string &bathymetry) {
+    make_sanity_writer(const SimulationConfig &cfg, double dt, const std::string backend_name,
+                       const std::string &riemann_solver, const std::string &reconstruction,
+                       const std::string &time_integrator, const std::string &boundary_condition,
+                       const std::string &bathymetry) {
 
         if (!cfg.sanity_checks.debug) {
             return nullptr;
@@ -385,7 +390,7 @@ class SerialSolver {
 
         return std::make_unique<SanityCheckNetCDFWriter>(
             cfg.sanity_checks.output_path.string(), cfg.time.time_unit, cfg.mesh.spatial_unit_h,
-            cfg.time.save_every, dt, riemann_solver, reconstruction, time_integrator,
+            cfg.time.save_every, dt, backend_name, riemann_solver, reconstruction, time_integrator,
             boundary_condition, bathymetry);
     }
 
@@ -515,4 +520,5 @@ class SerialSolver {
     const std::string time_integrator_name_;
     const std::string bathymetry_name_;
     const std::string boundary_name_;
+    const std::string backend_name_;
 };

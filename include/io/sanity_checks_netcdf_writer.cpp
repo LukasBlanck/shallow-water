@@ -1,12 +1,13 @@
 #include "include/io/sanity_checks_netdcdf_writer.hpp"
 #include <cstdint>
 #include <filesystem>
+#include <string>
 
 SanityCheckNetCDFWriter::SanityCheckNetCDFWriter(
     const std::string &path, const std::string &time_unit, const std::string &h_unit,
-    int save_every, double dt, const std::string &riemann_solver, const std::string &reconstruction,
-    const std::string &time_integrator, const std::string &boundary_condition,
-    const std::string &bathymetry)
+    int save_every, double dt, const std::string &backend_name, const std::string &riemann_solver,
+    const std::string &reconstruction, const std::string &time_integrator,
+    const std::string &boundary_condition, const std::string &bathymetry)
     : file_([&]() {
           std::filesystem::path p(path);
           if (p.has_parent_path()) {
@@ -15,7 +16,7 @@ SanityCheckNetCDFWriter::SanityCheckNetCDFWriter(
           return netCDF::NcFile(path, netCDF::NcFile::replace);
       }()),
       time_unit_(time_unit), h_unit_(h_unit), save_every_(save_every), dt_(dt),
-      riemann_solver_(riemann_solver), reconstruction_(reconstruction),
+      backend_name_(backend_name), riemann_solver_(riemann_solver), reconstruction_(reconstruction),
       time_integrator_(time_integrator), boundary_condition_(boundary_condition),
       bathymetry_(bathymetry) {
     define_file_structure();
@@ -46,6 +47,7 @@ void SanityCheckNetCDFWriter::define_file_structure() {
 
     file_.putAtt("save_every", netCDF::ncInt, save_every_);
     file_.putAtt("dt", netCDF::ncDouble, dt_);
+    file_.putAtt("backend", backend_name_);
     file_.putAtt("riemann_solver", riemann_solver_);
     file_.putAtt("reconstruction", reconstruction_);
     file_.putAtt("time_integrator", time_integrator_);

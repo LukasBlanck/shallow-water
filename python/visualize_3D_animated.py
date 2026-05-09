@@ -81,6 +81,7 @@ ds = xr.open_dataset(FILE_PATH, engine="netcdf4")
 
 # ---------------- Metadata: read once, print once ----------------
 dt_used = ds.attrs.get("dt", None)
+backend = ds.attrs.get("backend", "n/a")
 riemann_solver = ds.attrs.get("riemann_solver", "n/a")
 reconstruction = ds.attrs.get("reconstruction", "n/a")
 time_integrator = ds.attrs.get("time_integrator", "n/a")
@@ -89,6 +90,7 @@ bathymetry = ds.attrs.get("bathymetry", "n/a")
 
 print("Simulation metadata:")
 print(f"  dt              = {dt_used}" if dt_used is not None else "  dt              = n/a")
+print(f"  Backend         = {backend}")
 print(f"  Riemann solver  = {riemann_solver}")
 print(f"  reconstruction  = {reconstruction}")
 print(f"  time integrator = {time_integrator}")
@@ -101,6 +103,7 @@ save_every = ds.attrs.get("save_every", "n/a")
 info_text = "\n".join([
     f"dt = {dt_used:.6g} {time_unit}" if dt_used is not None else "dt = n/a",
     f"save_every = {save_every}",
+    f"Backend: {backend}",
     f"Riemann: {riemann_solver}",
     f"Recon: {reconstruction}",
     f"Time int.: {time_integrator}",

@@ -98,6 +98,7 @@ void NetCDFWriter::write_bathymetry(const Array2D &B) {
 }
 
 void NetCDFWriter::write_snapshot(const State &U, double time, double dt,
+                                  const std::string &backend,
                                   const std::string &riemann_solver,
                                   const std::string &reconstruction,
                                   const std::string &time_integrator,
@@ -110,6 +111,9 @@ void NetCDFWriter::write_snapshot(const State &U, double time, double dt,
 
         if (!std::isnan(dt)) {
             file_.putAtt("dt", netCDF::ncDouble, dt);
+        }
+        if (!backend.empty()) {
+            file_.putAtt("backend", backend);
         }
         if (!riemann_solver.empty()) {
             file_.putAtt("riemann_solver", riemann_solver);

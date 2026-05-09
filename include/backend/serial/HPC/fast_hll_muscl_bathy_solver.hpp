@@ -2,6 +2,7 @@
 
 #include "configs/config.hpp"
 
+#include "configs/parse_config_helper.hpp"
 #include "include/backend/serial/HPC/fast_hll_muscl_bathy_kernels.hpp"
 #include "include/bathymetry/apply_bathymetry.hpp"
 #include "include/core/array2D.hpp"
@@ -152,8 +153,8 @@ class FastHLLMUSCLBathySolver {
         {
             const auto start = FastSolverTimingStats::now();
             fill_io_state();
-            writer_.write_snapshot(io_state_, time, dt_, "HLL", "MUSCL", "SSPRK3",
-                                   "Reflecting Walls", bathymetry_name());
+            writer_.write_snapshot(io_state_, time, dt_, backend_name_from_cfg(cfg_), "HLL", "MUSCL", "SSPRK3",
+                                   "Reflecting Walls", bathymetry_name_from_cfg(cfg_));
             timing_.output += FastSolverTimingStats::seconds_since(start);
         }
 
@@ -443,24 +444,10 @@ class FastHLLMUSCLBathySolver {
 
         return std::make_unique<SanityCheckNetCDFWriter>(
             cfg.sanity_checks.output_path.string(), cfg.time.time_unit, cfg.mesh.spatial_unit_h,
-            cfg.time.save_every, dt, "HLL", "MUSCL", "SSPRK3", "Reflecting Walls",
+            cfg.time.save_every, dt, backend_name_from_cfg(cfg), "HLL", "MUSCL", "SSPRK3", "Reflecting Walls",
             bathymetry_name_from_cfg(cfg));
     }
 
-    static std::string bathymetry_name_from_cfg(const SimulationConfig &cfg) {
-        switch (cfg.bathymetry.type) {
-        case BathymetryType::None:
-            return "None";
-        case BathymetryType::Flat:
-            return "Flat";
-        case BathymetryType::GaussHill:
-            return "Gaussian Hill";
-        }
-
-        return "UnknownBathymetry";
-    }
-
-    std::string bathymetry_name() const { return bathymetry_name_from_cfg(cfg_); }
 
   private:
     const SimulationConfig cfg_;

@@ -41,6 +41,7 @@ time_unit = ds["time"].attrs.get("units", "not specified") if "time" in ds else 
 h_unit = ds["h_min"].attrs.get("units", "not specified") if "h_min" in ds else "not specified"
 
 dt_used = ds.attrs.get("dt", None)
+backend = ds.attrs.get("backend", "not specified")
 riemann_solver = ds.attrs.get("riemann_solver", "not specified")
 reconstruction = ds.attrs.get("reconstruction", "not specified")
 time_integrator = ds.attrs.get("time_integrator", "not specified")
@@ -54,6 +55,7 @@ positivity_enabled = get_bool_attr(ds, "positivity_enabled", False)
 # ---------------- Print metadata to CLI ----------------
 print("Simulation metadata:")
 print(f"  dt              = {dt_used}" if dt_used is not None else "  dt              = n/a")
+print(f"  Backend         = {backend}")
 print(f"  Riemann solver  = {riemann_solver}")
 print(f"  reconstruction  = {reconstruction}")
 print(f"  time integrator = {time_integrator}")
@@ -115,6 +117,7 @@ if not available_plots:
 info_lines = [
     f"dt = {dt_used:.6g} {time_unit}" if dt_used is not None else "dt = n/a",
     f"save_every = {save_every}",
+    f"Backend: {backend}",
     f"Riemann: {riemann_solver}",
     f"Recon: {reconstruction}",
     f"Time int.: {time_integrator}",
