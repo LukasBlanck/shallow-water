@@ -10,7 +10,7 @@ option(REQUIRE_OPENMP "Fail configuration if OpenMP is not available" OFF)
 
 add_executable(my_project
     apps/main.cpp
-    src/io/netCDF_writer.cpp
+    include/io/netCDF_writer.cpp
     configs/simulation_config.cpp
     tests/sanity_checks/sanity_checks.cpp
     include/io/sanity_checks_netcdf_writer.cpp

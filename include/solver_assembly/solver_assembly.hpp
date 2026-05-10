@@ -2,7 +2,7 @@
 
 #include "configs/config.hpp"
 #include "configs/simulation_config.hpp"
-#include "include/backend/serial/HPC/fast_hll_muscl_bathy_solver.hpp"
+#include "include/backend/serial/HPC/HPC_solver.hpp"
 #include "include/backend/serial/reconstruction/muscl.hpp"
 #include "include/backend/serial/reconstruction/piecewise_const.hpp"
 #include "include/backend/serial/riemann/ROE.hpp"
@@ -15,7 +15,7 @@
 #include <filesystem>
 
 #if USE_OPENMP
-#include "include/backend/openmp/fast_hll_muscl_bathy_omp_solver.hpp"
+#include "include/backend/openmp/omp_solver.hpp"
 #endif
 
 class SolverAssembly {

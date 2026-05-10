@@ -24,7 +24,7 @@
 #include <vector>
 
 #if USE_OPENMP
-#include "include/backend/openmp/fast_hll_muscl_bathy_omp_kernels.hpp"
+#include "include/backend/openmp/omp_kernels.hpp"
 #include <omp.h>
 
 #endif

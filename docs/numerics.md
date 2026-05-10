@@ -9,7 +9,7 @@ $$
 
 ### Homogeneous, flat bottom
 $
-{\partial d_t} U  + {\partial d_x} F(U)   + {\partial d_y} G(U) = 0    $
+{\partial _t} U  + {\partial _x} F(U)   + {\partial _y} G(U) = 0    $
 
 
 $$

@@ -3,7 +3,7 @@
 #include "configs/config.hpp"
 
 #include "configs/parse_config_helper.hpp"
-#include "include/backend/serial/HPC/fast_hll_muscl_bathy_kernels.hpp"
+#include "include/backend/serial/HPC/HPC_kernels.hpp"
 #include "include/bathymetry/apply_bathymetry.hpp"
 #include "include/core/array2D.hpp"
 #include "include/core/grid.hpp"
