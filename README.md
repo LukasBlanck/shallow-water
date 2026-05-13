@@ -72,7 +72,7 @@ tail -f swe_serial.o<JOB-ID>
 Visualization:
 ```
 python3 -m venv venv
-venv source/bin/activate
+source venv/bin/activate
 python3 pip install configs/requirements.txt
 ```
 ```
