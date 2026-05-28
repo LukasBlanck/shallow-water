@@ -31,14 +31,14 @@ Current / planned project scope:
 ---
 - [x] Non-flat bathymetry
 - [x] CMake-based build for laptop setup
-- [ ] CMake-based build for cluster setup 
-- [ ] Highly optimized HLL-MUSCL solver:
+- [x] CMake-based build for cluster setup 
+- [x] Highly optimized HLL-MUSCL solver:
     - [x] Serial
     - [x] OpenMP (Cluster)
-    - [ ] CUDA (Cluster)
+    - [x] CUDA (Cluster)
 
 ---
-- [ ] Timing capabilities
+- [x] Timing capabilities
 - [ ] Weak scaling analysis
 - [ ] Strong scaling analysis
 
@@ -64,8 +64,21 @@ Compile and run on laptop:
 Compile and run on leo3e:
 
 ```
-./run_leo3e.sh
+qsub run_openmp.sh
 tail -f swe_serial.o<JOB-ID>
+```
+
+#### GPU-Node
+##### Single GPU
+```
+sbatch run_cuda.sh
+tail -f swe_cuda.o<JOB-ID>
+```
+
+##### Multiple GPUs
+```
+sbatch run_cuda_4gpu.sh
+tail -f swe_cuda_4gpu.o<JOB-ID>
 ```
 
 ---
