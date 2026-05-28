@@ -1,0 +1,883 @@
+#pragma once
+
+#ifndef USE_CUDA_4
+#define USE_CUDA_4 0
+#endif
+
+#if USE_CUDA_4
+
+#include "configs/config.hpp"
+#include "configs/parse_config_helper.hpp"
+
+#include "include/backend/cuda/four_gpu/cuda_kernels_4gpu.cuh"
+#include "include/backend/openmp/omp_kernels.hpp"
+#include "include/bathymetry/apply_bathymetry.hpp"
+#include "include/core/array2D.hpp"
+#include "include/core/grid.hpp"
+#include "include/core/state.hpp"
+#include "include/initial_condition/apply_initial_condition.hpp"
+#include "include/io/netCDF_writer.hpp"
+#include "include/io/sanity_checks_netdcdf_writer.hpp"
+#include "include/solver_assembly/time_utils.hpp"
+#include "tests/sanity_checks/sanity_checks.hpp"
+
+#include <cuda_runtime.h>
+
+#include <algorithm>
+#include <array>
+#include <chrono>
+#include <cstddef>
+#include <iomanip>
+#include <iostream>
+#include <memory>
+#include <stdexcept>
+#include <string>
+#include <vector>
+
+#define CUDA_SOLVER_CHECK(call)                                                                    \
+    do {                                                                                           \
+        const cudaError_t err__ = (call);                                                          \
+        if (err__ != cudaSuccess) {                                                                \
+            throw std::runtime_error(std::string("CUDA error in ") + __FILE__ + ":" +              \
+                                     std::to_string(__LINE__) + " after " #call ": " +             \
+                                     cudaGetErrorString(err__));                                   \
+        }                                                                                          \
+    } while (false)
+
+struct FastCUDA4SolverTimingStats {
+    using Clock = std::chrono::steady_clock;
+
+    double cfl_check = 0.0;
+    double host_to_device = 0.0;
+    double device_to_host = 0.0;
+    double boundary_conditions = 0.0;
+    double halo_exchange = 0.0;
+    double fused_rhs = 0.0;
+    double time_integration = 0.0;
+    double positivity_correction = 0.0;
+    double output = 0.0;
+    double sanity_checks = 0.0;
+
+    std::size_t rhs_calls = 0;
+    std::size_t time_steps = 0;
+
+    static Clock::time_point now() { return Clock::now(); }
+
+    static double seconds_since(const Clock::time_point start) {
+        return std::chrono::duration<double>(Clock::now() - start).count();
+    }
+
+    double measured_solver_time() const {
+        return host_to_device + device_to_host + boundary_conditions + halo_exchange + fused_rhs +
+               time_integration + positivity_correction + output + sanity_checks;
+    }
+
+    void print_summary() const {
+        const double total = measured_solver_time();
+
+        std::cout << "\n========== 4-GPU fused CUDA solver timing summary ==========\n";
+        std::cout << "time steps           : " << time_steps << '\n';
+        std::cout << "rhs calls            : " << rhs_calls << '\n';
+        std::cout << "CFL check            : " << cfl_check << " s\n";
+        std::cout << "measured solver time : " << total << " s\n";
+
+        if (total <= 0.0) {
+            std::cout << "No positive measured solver time.\n";
+            std::cout << "==========================================================\n";
+            return;
+        }
+
+        const auto print_row = [total](const char *name, const double seconds) {
+            const double percent = 100.0 * seconds / total;
+            std::cout << std::left << std::setw(24) << name << std::right << std::setw(12)
+                      << seconds << " s  " << std::setw(8) << percent << " %\n";
+        };
+
+        std::cout << std::fixed << std::setprecision(6);
+        print_row("host to device", host_to_device);
+        print_row("device to host", device_to_host);
+        print_row("boundary conditions", boundary_conditions);
+        print_row("halo exchange", halo_exchange);
+        print_row("fused rhs", fused_rhs);
+        print_row("time integration", time_integration);
+        print_row("positivity correction", positivity_correction);
+        print_row("output", output);
+        print_row("sanity checks", sanity_checks);
+        std::cout << "==========================================================\n";
+    }
+};
+
+class FastHLLMUSCLBathyCUDA4Solver {
+  public:
+    static constexpr int NumGPUs = 4;
+
+    explicit FastHLLMUSCLBathyCUDA4Solver(const SimulationConfig &cfg)
+        : cfg_(cfg), grid_(cfg.mesh.Nx, cfg.mesh.Ny, cfg.mesh.Lx, cfg.mesh.Ly, cfg.mesh.nG),
+          gv_{grid_.Nx(),       grid_.Ny(),       grid_.nG(), grid_.Nx_total(),
+              grid_.Ny_total(), grid_.Ny_total(), grid_.dx(), grid_.dy()},
+          dt_(cfg.time.end_time / static_cast<double>(cfg.time.time_steps)),
+          end_time_(cfg.time.end_time), steps_(cfg.time.time_steps),
+          save_every_(static_cast<std::size_t>(cfg.time.save_every)),
+          n_total_(static_cast<std::size_t>(gv_.Nx_total) * static_cast<std::size_t>(gv_.Ny_total)),
+          h_(n_total_), hu_(n_total_), hv_(n_total_), B_(n_total_), io_state_(grid_),
+          io_bathy_(grid_.Nx_total(), grid_.Ny_total()),
+          writer_(cfg.output.path.string(), grid_, cfg.mesh.spatial_unit_x, cfg.mesh.spatial_unit_y,
+                  cfg.mesh.spatial_unit_h, cfg.time.time_unit, cfg.time.save_every),
+          sanity_checks_(make_sanity_checks(cfg)), sanity_writer_(make_sanity_writer(cfg, dt_)) {
+
+        if (grid_.nG() < 2) {
+            throw std::runtime_error("FastHLLMUSCLBathyCUDA4Solver requires nG >= 2 for MUSCL.");
+        }
+
+        if (grid_.Nx() < NumGPUs * grid_.nG()) {
+            throw std::runtime_error("4-GPU CUDA solver requires Nx >= 4*nG so each subdomain "
+                                     "has enough interior cells for halo exchange.");
+        }
+
+        int device_count = 0;
+        CUDA_SOLVER_CHECK(cudaGetDeviceCount(&device_count));
+        if (device_count < NumGPUs) {
+            throw std::runtime_error("4-GPU CUDA solver requested, but only " +
+                                     std::to_string(device_count) + " CUDA device(s) visible.");
+        }
+
+        build_subdomains();
+        enable_peer_access_best_effort();
+        allocate_device();
+
+        Array2D B_tmp(grid_.Nx_total(), grid_.Ny_total());
+        apply_bathymetry(cfg_, grid_, B_tmp);
+        apply_scalar_reflecting_bc(B_tmp.data());
+        copy_from_array2d(B_tmp, B_);
+        copy_to_array2d(B_, io_bathy_);
+        writer_.write_bathymetry(io_bathy_);
+
+        State U_tmp(grid_);
+        apply_initial_condition(cfg_, grid_, U_tmp);
+        copy_from_state(U_tmp, h_, hu_, hv_);
+        apply_reflecting_bc_cpu(h_.data(), hu_.data(), hv_.data());
+
+        for (auto &check : sanity_checks_) {
+            fill_io_state_from_host();
+            check->initialize(io_state_, grid_);
+        }
+    }
+
+    ~FastHLLMUSCLBathyCUDA4Solver() { free_device_noexcept(); }
+
+    FastHLLMUSCLBathyCUDA4Solver(const FastHLLMUSCLBathyCUDA4Solver &) = delete;
+    FastHLLMUSCLBathyCUDA4Solver &operator=(const FastHLLMUSCLBathyCUDA4Solver &) = delete;
+
+    void run() {
+        std::cout << std::unitbuf;
+        std::cerr << std::unitbuf;
+        std::cout << "INFO: 4-GPU CUDA fused RHS solver active\n";
+
+        double dt_stable = 0.0;
+        {
+            const auto start = FastCUDA4SolverTimingStats::now();
+            dt_stable = fast_hll_muscl_bathy_omp::compute_stable_dt(gv_, h_.data(), hu_.data(),
+                                                                    hv_.data(), cfg_.time.cfl);
+            timing_.cfl_check += FastCUDA4SolverTimingStats::seconds_since(start);
+        }
+
+        if (dt_ > dt_stable) {
+            throw std::runtime_error("Time step too large: dt = " + std::to_string(dt_) +
+                                     ", but CFL requires dt <= " + std::to_string(dt_stable));
+        }
+
+        double time = 0.0;
+        const bool estimate_eta = cfg_.output.compute_eta;
+        const std::size_t eta_probe_step = std::min<std::size_t>(100, steps_);
+        bool eta_printed = false;
+        const auto start_wall = std::chrono::steady_clock::now();
+
+        {
+            const auto start = FastCUDA4SolverTimingStats::now();
+            fill_io_state_from_host();
+            writer_.write_snapshot(io_state_, time, dt_, backend_name_from_cfg(cfg_), "HLL",
+                                   "MUSCL", "SSPRK3", "Reflecting Walls",
+                                   bathymetry_name_from_cfg(cfg_));
+            timing_.output += FastCUDA4SolverTimingStats::seconds_since(start);
+        }
+
+        {
+            const auto start = FastCUDA4SolverTimingStats::now();
+            run_sanity_checks(time, 0);
+            timing_.sanity_checks += FastCUDA4SolverTimingStats::seconds_since(start);
+        }
+
+        upload_initial_state_to_device();
+
+        for (std::size_t step = 0; step < steps_; ++step) {
+            rk3_step_cuda();
+            time += dt_;
+
+            const std::size_t step_number = step + 1;
+            ++timing_.time_steps;
+
+            if (estimate_eta && !eta_printed && step_number == eta_probe_step) {
+                synchronize_all_devices();
+                const auto now = std::chrono::steady_clock::now();
+                const double elapsed_sec = std::chrono::duration<double>(now - start_wall).count();
+                const double eta_sec = estimate_eta_seconds(step_number, steps_, elapsed_sec);
+                std::cout << "ETA = " << format_duration(eta_sec) << '\n';
+                eta_printed = true;
+            }
+
+            if (step_number % save_every_ == 0 || step_number == steps_) {
+                download_state_from_device();
+
+                {
+                    const auto start = FastCUDA4SolverTimingStats::now();
+                    fill_io_state_from_host();
+                    writer_.write_snapshot(io_state_, time);
+                    timing_.output += FastCUDA4SolverTimingStats::seconds_since(start);
+                }
+
+                {
+                    const auto start = FastCUDA4SolverTimingStats::now();
+                    run_sanity_checks(time, step_number);
+                    timing_.sanity_checks += FastCUDA4SolverTimingStats::seconds_since(start);
+                }
+            }
+        }
+
+        timing_.print_summary();
+    }
+
+  private:
+    struct Subdomain {
+        int device = 0;
+        int start = 0;    // number of physical cells before this subdomain in global x
+        int Nx_local = 0; // number of interior physical cells on this GPU
+        int Nx_total = 0; // Nx_local + 2*nG
+        int Ny_total = 0;
+        int stride = 0;
+        std::size_t n_total = 0;
+
+        fast_hll_muscl_bathy_cuda_4::GridView cgv{};
+
+        double *d_h{};
+        double *d_hu{};
+        double *d_hv{};
+
+        double *d_h1{};
+        double *d_hu1{};
+        double *d_hv1{};
+
+        double *d_h2{};
+        double *d_hu2{};
+        double *d_hv2{};
+
+        double *d_rhs_h{};
+        double *d_rhs_hu{};
+        double *d_rhs_hv{};
+
+        double *d_B{};
+        int *d_nonfinite{};
+    };
+
+    void build_subdomains() {
+        const int base = gv_.Nx / NumGPUs;
+        const int rem = gv_.Nx % NumGPUs;
+
+        int start = 0;
+        for (int d = 0; d < NumGPUs; ++d) {
+            const int nx_local = base + (d < rem ? 1 : 0);
+
+            auto &sd = sub_[d];
+            sd.device = d;
+            sd.start = start;
+            sd.Nx_local = nx_local;
+            sd.Nx_total = nx_local + 2 * gv_.nG;
+            sd.Ny_total = gv_.Ny_total;
+            sd.stride = gv_.Ny_total;
+            sd.n_total =
+                static_cast<std::size_t>(sd.Nx_total) * static_cast<std::size_t>(sd.Ny_total);
+
+            sd.cgv = fast_hll_muscl_bathy_cuda_4::GridView{
+                sd.Nx_local, gv_.Ny, gv_.nG, sd.Nx_total, sd.Ny_total, sd.stride, gv_.dx, gv_.dy};
+
+            start += nx_local;
+        }
+    }
+
+    void enable_peer_access_best_effort() {
+        for (int d = 0; d < NumGPUs; ++d) {
+            CUDA_SOLVER_CHECK(cudaSetDevice(d));
+            for (int other = 0; other < NumGPUs; ++other) {
+                if (other == d) continue;
+
+                int can_access = 0;
+                cudaError_t qerr = cudaDeviceCanAccessPeer(&can_access, d, other);
+                if (qerr != cudaSuccess || !can_access) {
+                    cudaGetLastError();
+                    continue;
+                }
+
+                cudaError_t err = cudaDeviceEnablePeerAccess(other, 0);
+                if (err == cudaErrorPeerAccessAlreadyEnabled) {
+                    cudaGetLastError();
+                } else if (err != cudaSuccess) {
+                    cudaGetLastError();
+                }
+            }
+        }
+    }
+
+    void allocate_device() {
+        for (auto &sd : sub_) {
+            CUDA_SOLVER_CHECK(cudaSetDevice(sd.device));
+
+            CUDA_SOLVER_CHECK(cudaMalloc(&sd.d_h, nbytes(sd)));
+            CUDA_SOLVER_CHECK(cudaMalloc(&sd.d_hu, nbytes(sd)));
+            CUDA_SOLVER_CHECK(cudaMalloc(&sd.d_hv, nbytes(sd)));
+
+            CUDA_SOLVER_CHECK(cudaMalloc(&sd.d_h1, nbytes(sd)));
+            CUDA_SOLVER_CHECK(cudaMalloc(&sd.d_hu1, nbytes(sd)));
+            CUDA_SOLVER_CHECK(cudaMalloc(&sd.d_hv1, nbytes(sd)));
+
+            CUDA_SOLVER_CHECK(cudaMalloc(&sd.d_h2, nbytes(sd)));
+            CUDA_SOLVER_CHECK(cudaMalloc(&sd.d_hu2, nbytes(sd)));
+            CUDA_SOLVER_CHECK(cudaMalloc(&sd.d_hv2, nbytes(sd)));
+
+            CUDA_SOLVER_CHECK(cudaMalloc(&sd.d_rhs_h, nbytes(sd)));
+            CUDA_SOLVER_CHECK(cudaMalloc(&sd.d_rhs_hu, nbytes(sd)));
+            CUDA_SOLVER_CHECK(cudaMalloc(&sd.d_rhs_hv, nbytes(sd)));
+
+            CUDA_SOLVER_CHECK(cudaMalloc(&sd.d_B, nbytes(sd)));
+            CUDA_SOLVER_CHECK(cudaMalloc(&sd.d_nonfinite, sizeof(int)));
+        }
+    }
+
+    void free_device_noexcept() noexcept {
+        for (auto &sd : sub_) {
+            cudaSetDevice(sd.device);
+
+            cudaFree(sd.d_h);
+            cudaFree(sd.d_hu);
+            cudaFree(sd.d_hv);
+
+            cudaFree(sd.d_h1);
+            cudaFree(sd.d_hu1);
+            cudaFree(sd.d_hv1);
+
+            cudaFree(sd.d_h2);
+            cudaFree(sd.d_hu2);
+            cudaFree(sd.d_hv2);
+
+            cudaFree(sd.d_rhs_h);
+            cudaFree(sd.d_rhs_hu);
+            cudaFree(sd.d_rhs_hv);
+
+            cudaFree(sd.d_B);
+            cudaFree(sd.d_nonfinite);
+        }
+    }
+
+    static std::size_t nbytes(const Subdomain &sd) noexcept { return sd.n_total * sizeof(double); }
+
+    std::size_t global_idx(const int i, const int j) const noexcept {
+        return static_cast<std::size_t>(i) * static_cast<std::size_t>(gv_.stride) +
+               static_cast<std::size_t>(j);
+    }
+
+    std::size_t local_idx(const Subdomain &sd, const int i, const int j) const noexcept {
+        return static_cast<std::size_t>(i) * static_cast<std::size_t>(sd.stride) +
+               static_cast<std::size_t>(j);
+    }
+
+    void make_local_host_copy(const Subdomain &sd, const std::vector<double> &global,
+                              std::vector<double> &local) const {
+        local.assign(sd.n_total, 0.0);
+
+        for (int li = 0; li < sd.Nx_total; ++li) {
+            const int gi = sd.start + li;
+            if (gi < 0 || gi >= gv_.Nx_total) continue;
+
+            const std::size_t src = global_idx(gi, 0);
+            const std::size_t dst = local_idx(sd, li, 0);
+            std::copy(global.begin() + static_cast<std::ptrdiff_t>(src),
+                      global.begin() + static_cast<std::ptrdiff_t>(src + gv_.Ny_total),
+                      local.begin() + static_cast<std::ptrdiff_t>(dst));
+        }
+    }
+
+    void upload_initial_state_to_device() {
+        const auto start = FastCUDA4SolverTimingStats::now();
+
+        std::vector<double> lh;
+        std::vector<double> lhu;
+        std::vector<double> lhv;
+        std::vector<double> lB;
+
+        for (const auto &sd : sub_) {
+            make_local_host_copy(sd, h_, lh);
+            make_local_host_copy(sd, hu_, lhu);
+            make_local_host_copy(sd, hv_, lhv);
+            make_local_host_copy(sd, B_, lB);
+
+            CUDA_SOLVER_CHECK(cudaSetDevice(sd.device));
+            CUDA_SOLVER_CHECK(cudaMemcpy(sd.d_h, lh.data(), nbytes(sd), cudaMemcpyHostToDevice));
+            CUDA_SOLVER_CHECK(cudaMemcpy(sd.d_hu, lhu.data(), nbytes(sd), cudaMemcpyHostToDevice));
+            CUDA_SOLVER_CHECK(cudaMemcpy(sd.d_hv, lhv.data(), nbytes(sd), cudaMemcpyHostToDevice));
+            CUDA_SOLVER_CHECK(cudaMemcpy(sd.d_B, lB.data(), nbytes(sd), cudaMemcpyHostToDevice));
+        }
+
+        synchronize_all_devices();
+        timing_.host_to_device += FastCUDA4SolverTimingStats::seconds_since(start);
+    }
+
+    void scatter_local_interior_to_global(const Subdomain &sd, const std::vector<double> &local,
+                                          std::vector<double> &global) const {
+        for (int li = 0; li < sd.Nx_local; ++li) {
+            const int local_i = sd.cgv.nG + li;
+            const int global_i = gv_.nG + sd.start + li;
+
+            const std::size_t src = local_idx(sd, local_i, 0);
+            const std::size_t dst = global_idx(global_i, 0);
+
+            std::copy(local.begin() + static_cast<std::ptrdiff_t>(src),
+                      local.begin() + static_cast<std::ptrdiff_t>(src + gv_.Ny_total),
+                      global.begin() + static_cast<std::ptrdiff_t>(dst));
+        }
+    }
+
+    void download_state_from_device() {
+        const auto start = FastCUDA4SolverTimingStats::now();
+
+        std::vector<double> lh;
+        std::vector<double> lhu;
+        std::vector<double> lhv;
+
+        for (const auto &sd : sub_) {
+            lh.resize(sd.n_total);
+            lhu.resize(sd.n_total);
+            lhv.resize(sd.n_total);
+
+            CUDA_SOLVER_CHECK(cudaSetDevice(sd.device));
+            CUDA_SOLVER_CHECK(cudaMemcpy(lh.data(), sd.d_h, nbytes(sd), cudaMemcpyDeviceToHost));
+            CUDA_SOLVER_CHECK(cudaMemcpy(lhu.data(), sd.d_hu, nbytes(sd), cudaMemcpyDeviceToHost));
+            CUDA_SOLVER_CHECK(cudaMemcpy(lhv.data(), sd.d_hv, nbytes(sd), cudaMemcpyDeviceToHost));
+
+            scatter_local_interior_to_global(sd, lh, h_);
+            scatter_local_interior_to_global(sd, lhu, hu_);
+            scatter_local_interior_to_global(sd, lhv, hv_);
+        }
+
+        apply_reflecting_bc_cpu(h_.data(), hu_.data(), hv_.data());
+        timing_.device_to_host += FastCUDA4SolverTimingStats::seconds_since(start);
+    }
+
+    void synchronize_all_devices() {
+        for (const auto &sd : sub_) {
+            CUDA_SOLVER_CHECK(cudaSetDevice(sd.device));
+            CUDA_SOLVER_CHECK(cudaDeviceSynchronize());
+        }
+    }
+
+    void exchange_one_array(double *Subdomain::*member) {
+        const std::size_t row_bytes = static_cast<std::size_t>(gv_.Ny_total) * sizeof(double);
+        const std::size_t halo_bytes = static_cast<std::size_t>(gv_.nG) * row_bytes;
+
+        synchronize_all_devices();
+
+        for (int d = 0; d < NumGPUs - 1; ++d) {
+            auto &left = sub_[d];
+            auto &right = sub_[d + 1];
+
+            double *left_arr = left.*member;
+            double *right_arr = right.*member;
+
+            const int left_right_src_i = left.cgv.nG + left.Nx_local - left.cgv.nG;
+            const int left_right_dst_i = left.cgv.nG + left.Nx_local;
+
+            const int right_left_src_i = right.cgv.nG;
+            const int right_left_dst_i = 0;
+
+            CUDA_SOLVER_CHECK(cudaMemcpyPeer(
+                right_arr + local_idx(right, right_left_dst_i, 0), right.device,
+                left_arr + local_idx(left, left_right_src_i, 0), left.device, halo_bytes));
+
+            CUDA_SOLVER_CHECK(cudaMemcpyPeer(
+                left_arr + local_idx(left, left_right_dst_i, 0), left.device,
+                right_arr + local_idx(right, right_left_src_i, 0), right.device, halo_bytes));
+        }
+
+        synchronize_all_devices();
+    }
+
+    void exchange_x_halos(double *h, double *hu, double *hv) {
+        (void)h;
+        (void)hu;
+        (void)hv;
+        // The actual array pointers are members of each Subdomain.  This wrapper is kept only to
+        // make the RK-stage logic explicit and symmetric with the single-GPU solver.
+        exchange_one_array(&Subdomain::d_h);
+        exchange_one_array(&Subdomain::d_hu);
+        exchange_one_array(&Subdomain::d_hv);
+    }
+
+    void exchange_x_halos_stage1() {
+        exchange_one_array(&Subdomain::d_h1);
+        exchange_one_array(&Subdomain::d_hu1);
+        exchange_one_array(&Subdomain::d_hv1);
+    }
+
+    void exchange_x_halos_stage2() {
+        exchange_one_array(&Subdomain::d_h2);
+        exchange_one_array(&Subdomain::d_hu2);
+        exchange_one_array(&Subdomain::d_hv2);
+    }
+
+    void launch_reflecting_bc_for_state(double *Subdomain::*h_member, double *Subdomain::*hu_member,
+                                        double *Subdomain::*hv_member) {
+        const auto start = FastCUDA4SolverTimingStats::now();
+
+        constexpr int block_1d = 256;
+
+        for (int d = 0; d < NumGPUs; ++d) {
+            auto &sd = sub_[d];
+            CUDA_SOLVER_CHECK(cudaSetDevice(sd.device));
+
+            double *h = sd.*h_member;
+            double *hu = sd.*hu_member;
+            double *hv = sd.*hv_member;
+
+            const dim3 grid_x((sd.cgv.Ny + block_1d - 1) / block_1d, sd.cgv.nG);
+            const dim3 grid_y((sd.cgv.Nx_total + block_1d - 1) / block_1d, sd.cgv.nG);
+
+            const int reflect_left = (d == 0) ? 1 : 0;
+            const int reflect_right = (d == NumGPUs - 1) ? 1 : 0;
+
+            fast_hll_muscl_bathy_cuda_4::apply_physical_reflecting_x_kernel<<<grid_x, block_1d>>>(
+                sd.cgv, h, hu, hv, reflect_left, reflect_right);
+            CUDA_SOLVER_CHECK(cudaGetLastError());
+
+            fast_hll_muscl_bathy_cuda_4::apply_reflecting_y_kernel<<<grid_y, block_1d>>>(sd.cgv, h,
+                                                                                         hu, hv);
+            CUDA_SOLVER_CHECK(cudaGetLastError());
+        }
+
+        synchronize_all_devices();
+        timing_.boundary_conditions += FastCUDA4SolverTimingStats::seconds_since(start);
+    }
+
+    void prepare_state_u_for_rhs() {
+        const auto start = FastCUDA4SolverTimingStats::now();
+        exchange_x_halos(nullptr, nullptr, nullptr);
+        timing_.halo_exchange += FastCUDA4SolverTimingStats::seconds_since(start);
+        launch_reflecting_bc_for_state(&Subdomain::d_h, &Subdomain::d_hu, &Subdomain::d_hv);
+    }
+
+    void prepare_state_u1_for_rhs() {
+        const auto start = FastCUDA4SolverTimingStats::now();
+        exchange_x_halos_stage1();
+        timing_.halo_exchange += FastCUDA4SolverTimingStats::seconds_since(start);
+        launch_reflecting_bc_for_state(&Subdomain::d_h1, &Subdomain::d_hu1, &Subdomain::d_hv1);
+    }
+
+    void prepare_state_u2_for_rhs() {
+        const auto start = FastCUDA4SolverTimingStats::now();
+        exchange_x_halos_stage2();
+        timing_.halo_exchange += FastCUDA4SolverTimingStats::seconds_since(start);
+        launch_reflecting_bc_for_state(&Subdomain::d_h2, &Subdomain::d_hu2, &Subdomain::d_hv2);
+    }
+
+    void launch_fused_rhs_for_state(double *Subdomain::*h_member, double *Subdomain::*hu_member,
+                                    double *Subdomain::*hv_member) {
+        ++timing_.rhs_calls;
+        const auto start = FastCUDA4SolverTimingStats::now();
+
+        for (auto &sd : sub_) {
+            CUDA_SOLVER_CHECK(cudaSetDevice(sd.device));
+
+            const dim3 block = fast_hll_muscl_bathy_cuda_4::rhs_block();
+            const dim3 grid = fast_hll_muscl_bathy_cuda_4::rhs_grid(sd.cgv);
+
+            fast_hll_muscl_bathy_cuda_4::fused_rhs_kernel<<<grid, block>>>(
+                sd.cgv, sd.*h_member, sd.*hu_member, sd.*hv_member, sd.d_B, sd.d_rhs_h, sd.d_rhs_hu,
+                sd.d_rhs_hv);
+            CUDA_SOLVER_CHECK(cudaGetLastError());
+        }
+
+        synchronize_all_devices();
+        timing_.fused_rhs += FastCUDA4SolverTimingStats::seconds_since(start);
+    }
+
+    void launch_rk_stage1() {
+        const auto start = FastCUDA4SolverTimingStats::now();
+
+        constexpr int block = 256;
+        for (auto &sd : sub_) {
+            CUDA_SOLVER_CHECK(cudaSetDevice(sd.device));
+
+            const dim3 grid = fast_hll_muscl_bathy_cuda_4::one_d_grid(sd.n_total, block);
+
+            fast_hll_muscl_bathy_cuda_4::rk_stage1_kernel<<<grid, block>>>(
+                sd.n_total, dt_, sd.d_h, sd.d_hu, sd.d_hv, sd.d_rhs_h, sd.d_rhs_hu, sd.d_rhs_hv,
+                sd.d_h1, sd.d_hu1, sd.d_hv1);
+            CUDA_SOLVER_CHECK(cudaGetLastError());
+        }
+
+        synchronize_all_devices();
+        timing_.time_integration += FastCUDA4SolverTimingStats::seconds_since(start);
+    }
+
+    void launch_rk_stage2() {
+        const auto start = FastCUDA4SolverTimingStats::now();
+
+        constexpr int block = 256;
+        for (auto &sd : sub_) {
+            CUDA_SOLVER_CHECK(cudaSetDevice(sd.device));
+
+            const dim3 grid = fast_hll_muscl_bathy_cuda_4::one_d_grid(sd.n_total, block);
+
+            fast_hll_muscl_bathy_cuda_4::rk_stage2_kernel<<<grid, block>>>(
+                sd.n_total, dt_, sd.d_h, sd.d_hu, sd.d_hv, sd.d_h1, sd.d_hu1, sd.d_hv1, sd.d_rhs_h,
+                sd.d_rhs_hu, sd.d_rhs_hv, sd.d_h2, sd.d_hu2, sd.d_hv2);
+            CUDA_SOLVER_CHECK(cudaGetLastError());
+        }
+
+        synchronize_all_devices();
+        timing_.time_integration += FastCUDA4SolverTimingStats::seconds_since(start);
+    }
+
+    void launch_rk_stage3() {
+        const auto start = FastCUDA4SolverTimingStats::now();
+
+        constexpr int block = 256;
+        for (auto &sd : sub_) {
+            CUDA_SOLVER_CHECK(cudaSetDevice(sd.device));
+
+            const dim3 grid = fast_hll_muscl_bathy_cuda_4::one_d_grid(sd.n_total, block);
+
+            fast_hll_muscl_bathy_cuda_4::rk_stage3_kernel<<<grid, block>>>(
+                sd.n_total, dt_, sd.d_h, sd.d_hu, sd.d_hv, sd.d_h2, sd.d_hu2, sd.d_hv2, sd.d_rhs_h,
+                sd.d_rhs_hu, sd.d_rhs_hv);
+            CUDA_SOLVER_CHECK(cudaGetLastError());
+        }
+
+        synchronize_all_devices();
+        timing_.time_integration += FastCUDA4SolverTimingStats::seconds_since(start);
+    }
+
+    void launch_enforce_positivity_for_state(double *Subdomain::*h_member,
+                                             double *Subdomain::*hu_member,
+                                             double *Subdomain::*hv_member) {
+        const auto start = FastCUDA4SolverTimingStats::now();
+
+        for (auto &sd : sub_) {
+            CUDA_SOLVER_CHECK(cudaSetDevice(sd.device));
+            CUDA_SOLVER_CHECK(cudaMemset(sd.d_nonfinite, 0, sizeof(int)));
+
+            const dim3 block = fast_hll_muscl_bathy_cuda_4::rhs_block();
+            const dim3 grid = fast_hll_muscl_bathy_cuda_4::rhs_grid(sd.cgv);
+
+            fast_hll_muscl_bathy_cuda_4::enforce_positivity_kernel<<<grid, block>>>(
+                sd.cgv, sd.*h_member, sd.*hu_member, sd.*hv_member, sd.d_nonfinite);
+            CUDA_SOLVER_CHECK(cudaGetLastError());
+        }
+
+        synchronize_all_devices();
+
+        for (auto &sd : sub_) {
+            CUDA_SOLVER_CHECK(cudaSetDevice(sd.device));
+            int nonfinite = 0;
+            CUDA_SOLVER_CHECK(
+                cudaMemcpy(&nonfinite, sd.d_nonfinite, sizeof(int), cudaMemcpyDeviceToHost));
+            if (nonfinite) {
+                throw std::runtime_error("non-finite state detected in 4-GPU CUDA fast solver");
+            }
+        }
+
+        timing_.positivity_correction += FastCUDA4SolverTimingStats::seconds_since(start);
+    }
+
+    void rk3_step_cuda() {
+        prepare_state_u_for_rhs();
+        launch_fused_rhs_for_state(&Subdomain::d_h, &Subdomain::d_hu, &Subdomain::d_hv);
+        launch_rk_stage1();
+        launch_enforce_positivity_for_state(&Subdomain::d_h1, &Subdomain::d_hu1, &Subdomain::d_hv1);
+
+        prepare_state_u1_for_rhs();
+        launch_fused_rhs_for_state(&Subdomain::d_h1, &Subdomain::d_hu1, &Subdomain::d_hv1);
+        launch_rk_stage2();
+        launch_enforce_positivity_for_state(&Subdomain::d_h2, &Subdomain::d_hu2, &Subdomain::d_hv2);
+
+        prepare_state_u2_for_rhs();
+        launch_fused_rhs_for_state(&Subdomain::d_h2, &Subdomain::d_hu2, &Subdomain::d_hv2);
+        launch_rk_stage3();
+        launch_enforce_positivity_for_state(&Subdomain::d_h, &Subdomain::d_hu, &Subdomain::d_hv);
+
+        prepare_state_u_for_rhs();
+    }
+
+    void apply_reflecting_bc_cpu(double *h, double *hu, double *hv) const noexcept {
+        const int nG = gv_.nG;
+        const int Nx = gv_.Nx;
+        const int Ny = gv_.Ny;
+        const int s = gv_.stride;
+
+        for (int g = 0; g < nG; ++g) {
+            const int iL = nG - 1 - g;
+            const int iSrcL = nG + g;
+            const int iR = nG + Nx + g;
+            const int iSrcR = nG + Nx - 1 - g;
+
+            for (int j = nG; j < nG + Ny; ++j) {
+                const int kL = fast_hll_muscl_bathy_omp::idx(iL, j, s);
+                const int kSrcL = fast_hll_muscl_bathy_omp::idx(iSrcL, j, s);
+
+                h[kL] = h[kSrcL];
+                hu[kL] = -hu[kSrcL];
+                hv[kL] = hv[kSrcL];
+
+                const int kR = fast_hll_muscl_bathy_omp::idx(iR, j, s);
+                const int kSrcR = fast_hll_muscl_bathy_omp::idx(iSrcR, j, s);
+
+                h[kR] = h[kSrcR];
+                hu[kR] = -hu[kSrcR];
+                hv[kR] = hv[kSrcR];
+            }
+        }
+
+        for (int g = 0; g < nG; ++g) {
+            const int jB = nG - 1 - g;
+            const int jSrcB = nG + g;
+            const int jT = nG + Ny + g;
+            const int jSrcT = nG + Ny - 1 - g;
+
+            for (int i = 0; i < gv_.Nx_total; ++i) {
+                const int kB = fast_hll_muscl_bathy_omp::idx(i, jB, s);
+                const int kSrcB = fast_hll_muscl_bathy_omp::idx(i, jSrcB, s);
+
+                h[kB] = h[kSrcB];
+                hu[kB] = hu[kSrcB];
+                hv[kB] = -hv[kSrcB];
+
+                const int kT = fast_hll_muscl_bathy_omp::idx(i, jT, s);
+                const int kSrcT = fast_hll_muscl_bathy_omp::idx(i, jSrcT, s);
+
+                h[kT] = h[kSrcT];
+                hu[kT] = hu[kSrcT];
+                hv[kT] = -hv[kSrcT];
+            }
+        }
+    }
+
+    void apply_scalar_reflecting_bc(double *a) const noexcept {
+        const int nG = gv_.nG;
+        const int Nx = gv_.Nx;
+        const int Ny = gv_.Ny;
+        const int s = gv_.stride;
+
+        for (int g = 0; g < nG; ++g) {
+            const int iL = nG - 1 - g;
+            const int iSrcL = nG + g;
+            const int iR = nG + Nx + g;
+            const int iSrcR = nG + Nx - 1 - g;
+
+            for (int j = nG; j < nG + Ny; ++j) {
+                a[fast_hll_muscl_bathy_omp::idx(iL, j, s)] =
+                    a[fast_hll_muscl_bathy_omp::idx(iSrcL, j, s)];
+                a[fast_hll_muscl_bathy_omp::idx(iR, j, s)] =
+                    a[fast_hll_muscl_bathy_omp::idx(iSrcR, j, s)];
+            }
+        }
+
+        for (int g = 0; g < nG; ++g) {
+            const int jB = nG - 1 - g;
+            const int jSrcB = nG + g;
+            const int jT = nG + Ny + g;
+            const int jSrcT = nG + Ny - 1 - g;
+
+            for (int i = 0; i < gv_.Nx_total; ++i) {
+                a[fast_hll_muscl_bathy_omp::idx(i, jB, s)] =
+                    a[fast_hll_muscl_bathy_omp::idx(i, jSrcB, s)];
+                a[fast_hll_muscl_bathy_omp::idx(i, jT, s)] =
+                    a[fast_hll_muscl_bathy_omp::idx(i, jSrcT, s)];
+            }
+        }
+    }
+
+    static void copy_from_array2d(const Array2D &src, std::vector<double> &dst) {
+        std::copy(src.data(), src.data() + src.size(), dst.begin());
+    }
+
+    static void copy_to_array2d(const std::vector<double> &src, Array2D &dst) {
+        std::copy(src.begin(), src.end(), dst.data());
+    }
+
+    static void copy_from_state(const State &src, std::vector<double> &h, std::vector<double> &hu,
+                                std::vector<double> &hv) {
+        std::copy(src.h().data(), src.h().data() + src.h().size(), h.begin());
+        std::copy(src.hu().data(), src.hu().data() + src.hu().size(), hu.begin());
+        std::copy(src.hv().data(), src.hv().data() + src.hv().size(), hv.begin());
+    }
+
+    void fill_io_state_from_host() {
+        std::copy(h_.begin(), h_.end(), io_state_.h().data());
+        std::copy(hu_.begin(), hu_.end(), io_state_.hu().data());
+        std::copy(hv_.begin(), hv_.end(), io_state_.hv().data());
+    }
+
+    void run_sanity_checks(double time, std::size_t step) {
+        if (sanity_checks_.empty()) return;
+
+        fill_io_state_from_host();
+
+        for (auto &check : sanity_checks_) {
+            check->evaluate(io_state_, grid_, time, step, sanity_writer_.get());
+        }
+    }
+
+    static std::unique_ptr<SanityCheckNetCDFWriter> make_sanity_writer(const SimulationConfig &cfg,
+                                                                       double dt) {
+        if (!cfg.sanity_checks.debug) return nullptr;
+
+        if (cfg.sanity_checks.output_path.empty()) {
+            throw std::runtime_error(
+                "sanity_checks.output_path must be set if debug mode is enabled");
+        }
+
+        return std::make_unique<SanityCheckNetCDFWriter>(
+            cfg.sanity_checks.output_path.string(), cfg.time.time_unit, cfg.mesh.spatial_unit_h,
+            cfg.time.save_every, dt, backend_name_from_cfg(cfg), "HLL", "MUSCL", "SSPRK3",
+            "Reflecting Walls", bathymetry_name_from_cfg(cfg));
+    }
+
+  private:
+    const SimulationConfig cfg_;
+
+    Grid grid_;
+    fast_hll_muscl_bathy_omp::GridView gv_;
+
+    double dt_{};
+    double end_time_{};
+    std::size_t steps_{};
+    std::size_t save_every_{};
+    std::size_t n_total_{};
+
+    std::vector<double> h_;
+    std::vector<double> hu_;
+    std::vector<double> hv_;
+    std::vector<double> B_;
+
+    std::array<Subdomain, NumGPUs> sub_{};
+
+    State io_state_;
+    Array2D io_bathy_;
+    NetCDFWriter writer_;
+    std::vector<std::unique_ptr<SanityCheck>> sanity_checks_;
+    std::unique_ptr<SanityCheckNetCDFWriter> sanity_writer_;
+
+    FastCUDA4SolverTimingStats timing_;
+};
+
+using FastHLLMUSCLBathyCUDASolver = FastHLLMUSCLBathyCUDA4Solver;
+
+#undef CUDA_SOLVER_CHECK
+
+#endif // USE_CUDA_4
