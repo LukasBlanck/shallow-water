@@ -13,7 +13,7 @@ literature
 *.mp4
 *.nc
 *.png
-benchmarks/
+benchmarks/scaling/
 
 # Personal release log
 docs/v*
