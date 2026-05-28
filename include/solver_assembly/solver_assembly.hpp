@@ -18,6 +18,14 @@
 #include "include/backend/openmp/omp_solver.hpp"
 #endif
 
+#if USE_CUDA
+#include "include/backend/cuda/cuda_solver.hpp"
+#endif
+
+#if USE_CUDA_4
+#include "include/backend/cuda/four_gpu/cuda_solver_4gpu.hpp"
+#endif
+
 class SolverAssembly {
 
   public:
@@ -32,12 +40,13 @@ class SolverAssembly {
             return;
 
         case BackendType::OptimizedSerial:
+            warn_if_ignored_optimized_settings(cfg_, "OptimizedSerial");
             run_optimized_serial();
             return;
 
         case BackendType::OpenMP: {
 #if USE_OPENMP
-            warn_if_ignored_optimized_settings(cfg_, "OptimizedSerial");
+            warn_if_ignored_optimized_settings(cfg_, "OpenMP");
 
             // use the .toml specified threads
             const int threads = choose_openmp_threads();
@@ -59,6 +68,50 @@ class SolverAssembly {
                 "OpenMP backend was requested in simulation_config.toml, but this binary "
                 "was built without OpenMP. Either install OpenMP and rebuild, or set "
                 "[backend] type = \"OptimizedSerial\" or type = \"Serial\".");
+#endif
+        }
+        case BackendType::CUDA: {
+#if USE_CUDA
+            warn_if_ignored_optimized_settings(cfg_, "CUDA");
+
+            if (cfg_.bathymetry.type == BathymetryType::Flat ||
+                cfg_.bathymetry.type == BathymetryType::GaussHill) {
+
+                FastHLLMUSCLBathyCUDASolver solver(cfg_);
+                solver.run();
+                return;
+            }
+
+            throw std::runtime_error("Unsupported CUDA solver combination. "
+                                     "The CUDA backend currently supports MUSCL + HLL + SSPRK3 + "
+                                     "ReflectingWalls with Flat or GaussHill bathymetry.");
+#else
+            throw std::runtime_error(
+                "CUDA backend was requested in simulation_config.toml, but this binary "
+                "was built without CUDA. Rebuild with USE_CUDA enabled, or set "
+                "[backend] type = \"OptimizedSerial\", \"OpenMP\", or \"Serial\".");
+#endif
+        }
+        case BackendType::CUDA_4: {
+#if USE_CUDA_4
+            warn_if_ignored_optimized_settings(cfg_, "CUDA_4");
+
+            if (cfg_.bathymetry.type == BathymetryType::Flat ||
+                cfg_.bathymetry.type == BathymetryType::GaussHill) {
+
+                FastHLLMUSCLBathyCUDASolver solver(cfg_);
+                solver.run();
+                return;
+            }
+
+            throw std::runtime_error("Unsupported CUDA_4 solver combination. "
+                                     "The CUDA backend currently supports MUSCL + HLL + SSPRK3 + "
+                                     "ReflectingWalls with Flat or GaussHill bathymetry.");
+#else
+            throw std::runtime_error(
+                "CUDA_4 backend was requested in simulation_config.toml, but this binary "
+                "was built without CUDA. Rebuild with USE_CUDA enabled, or set "
+                "[backend] type = \"OptimizedSerial\", \"OpenMP\", or \"Serial\".");
 #endif
         }
         }
@@ -167,6 +220,10 @@ class SolverAssembly {
 
         if (cfg_.time.save_every > cfg_.time.time_steps) {
             throw std::runtime_error("save_every must not be larger than time_steps");
+        }
+
+        if (cfg_.backend.type == BackendType::CUDA && cfg_.mesh.nG < 2) {
+            throw std::runtime_error("CUDA solver requires nG >= 2");
         }
 
         // Bathymetry
