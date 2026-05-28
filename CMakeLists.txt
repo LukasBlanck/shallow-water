@@ -5,8 +5,17 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+# ---- OpenMP ----
 option(ENABLE_OPENMP "Build with OpenMP support if available" ON)
 option(REQUIRE_OPENMP "Fail configuration if OpenMP is not available" OFF)
+
+# ---- CUDA ----
+option(ENABLE_CUDA "Build with CUDA support if available" OFF)
+option(REQUIRE_CUDA "Fail configuration if CUDA is not available" OFF)
+
+# ---- CUDA_4 ----
+option(ENABLE_CUDA_4 "Build with CUDA_4 support if available" OFF)
+option(REQUIRE_CUDA_4 "Fail configuration if CUDA_4 is not available" OFF)
 
 add_executable(my_project
     apps/main.cpp
@@ -138,4 +147,134 @@ if(ENABLE_OPENMP)
 else()
     message(STATUS "OpenMP disabled")
     target_compile_definitions(my_project PRIVATE USE_OPENMP=0)
+endif()
+
+# ============================================================
+# Optional CUDA
+# ============================================================
+
+if(ENABLE_CUDA)
+    enable_language(CUDA)
+
+    find_package(CUDAToolkit QUIET)
+
+    if(CUDAToolkit_FOUND)
+        message(STATUS "CUDA Toolkit found")
+        message(STATUS "CMAKE_CUDA_COMPILER=${CMAKE_CUDA_COMPILER}")
+        message(STATUS "CUDAToolkit_VERSION=${CUDAToolkit_VERSION}")
+
+        target_compile_definitions(my_project PRIVATE USE_CUDA=1)
+        target_link_libraries(my_project PRIVATE CUDA::cudart)
+
+        set_target_properties(my_project PROPERTIES
+            CUDA_SEPARABLE_COMPILATION ON
+        )
+
+        # Pick  on the cluster; examples:
+        # 70 = V100, 80 = A100, 86 = RTX 30xx, 89 = RTX 40xx, 90 = H100
+        if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
+            set(CMAKE_CUDA_ARCHITECTURES 70 80)
+        endif()
+
+    elseif(REQUIRE_CUDA)
+        message(FATAL_ERROR "CUDA was requested but not found. Need nvcc and cuda_runtime.h.")
+    else()
+        message(WARNING "CUDA not found. Building without CUDA.")
+        target_compile_definitions(my_project PRIVATE USE_CUDA=0)
+    endif()
+else()
+    message(STATUS "Single-GPU CUDA backend disabled")
+    target_compile_definitions(my_project PRIVATE USE_CUDA=0)
+endif()
+
+if(ENABLE_CUDA)
+    enable_language(CUDA)
+
+    set_source_files_properties(
+        apps/main.cpp
+        PROPERTIES
+            LANGUAGE CUDA
+    )
+
+    target_compile_definitions(my_project PRIVATE USE_CUDA=1)
+
+    set_target_properties(my_project PROPERTIES
+        CUDA_ARCHITECTURES 70
+        CUDA_SEPARABLE_COMPILATION ON
+        CUDA_STANDARD 17
+        CUDA_STANDARD_REQUIRED ON
+        CXX_STANDARD 17
+        CXX_STANDARD_REQUIRED ON
+    )
+
+    target_compile_options(my_project PRIVATE
+        $<$<COMPILE_LANGUAGE:CUDA>:--allow-unsupported-compiler>
+    )
+else()
+    target_compile_definitions(my_project PRIVATE USE_CUDA=0)
+endif()
+
+# ============================================================
+# Optional CUDA_4
+# ============================================================
+
+if(ENABLE_CUDA_4)
+    enable_language(CUDA)
+
+    find_package(CUDAToolkit QUIET)
+
+    if(CUDAToolkit_FOUND)
+        message(STATUS "CUDA Toolkit found")
+        message(STATUS "CMAKE_CUDA_COMPILER=${CMAKE_CUDA_COMPILER}")
+        message(STATUS "CUDAToolkit_VERSION=${CUDAToolkit_VERSION}")
+
+        target_compile_definitions(my_project PRIVATE USE_CUDA_4=1)
+        target_link_libraries(my_project PRIVATE CUDA::cudart)
+
+        set_target_properties(my_project PROPERTIES
+            CUDA_SEPARABLE_COMPILATION ON
+        )
+
+        # Cluster dependent NVIDIA GPUs:
+        # 70 = V100, 80 = A100, 86 = RTX 30xx, 89 = RTX 40xx, 90 = H100
+        if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
+            set(CMAKE_CUDA_ARCHITECTURES 70)    # GPU-Node of UIBK
+        endif()
+
+    elseif(REQUIRE_CUDA_4)
+        message(FATAL_ERROR "CUDA was requested but not found. Need nvcc and cuda_runtime.h.")
+    else()
+        message(WARNING "CUDA not found. Building without CUDA.")
+        target_compile_definitions(my_project PRIVATE USE_CUDA_4=0)
+    endif()
+else()
+    message(STATUS "4-GPU CUDA backend enabled")
+    target_compile_definitions(my_project PRIVATE USE_CUDA_4=0)
+endif()
+
+if(ENABLE_CUDA_4)
+    enable_language(CUDA)
+
+    set_source_files_properties(
+        apps/main.cpp
+        PROPERTIES
+            LANGUAGE CUDA
+    )
+
+    target_compile_definitions(my_project PRIVATE USE_CUDA_4=1)
+
+    set_target_properties(my_project PROPERTIES
+        CUDA_ARCHITECTURES 70
+        CUDA_SEPARABLE_COMPILATION ON
+        CUDA_STANDARD 17
+        CUDA_STANDARD_REQUIRED ON
+        CXX_STANDARD 17
+        CXX_STANDARD_REQUIRED ON
+    )
+
+    target_compile_options(my_project PRIVATE
+        $<$<COMPILE_LANGUAGE:CUDA>:--allow-unsupported-compiler>
+    )
+else()
+    target_compile_definitions(my_project PRIVATE USE_CUDA_4=0)
 endif()
