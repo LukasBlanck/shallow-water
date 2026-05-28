@@ -2,6 +2,8 @@
 .DS_Store
 
 build
+build-cuda
+build-cuda-4gpu
 venv
 .cache
 literature
@@ -11,6 +13,7 @@ literature
 *.mp4
 *.nc
 *.png
+benchmarks/
 
 # Personal release log
 docs/v*
