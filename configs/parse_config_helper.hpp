@@ -10,6 +10,10 @@ inline std::string backend_name_from_cfg(const SimulationConfig &cfg) {
         return "OptimizedSerial";
     case BackendType::OpenMP:
         return "OpenMP";
+    case BackendType::CUDA:
+        return "CUDA";
+    case BackendType::CUDA_4:
+        return "CUDA_4";
     }
 
     return "UnknownBackend";

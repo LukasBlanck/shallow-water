@@ -12,6 +12,8 @@ BackendType parse_backend_type(const std::string &s) {
     if (s == "Serial") return BackendType::Serial;
     if (s == "OptimizedSerial") return BackendType::OptimizedSerial;
     if (s == "OpenMP") return BackendType::OpenMP;
+    if (s == "CUDA") return BackendType::CUDA;
+    if (s == "CUDA_4") return BackendType::CUDA_4;
     throw std::runtime_error("Unknown backend type: " + s);
 }
 
@@ -152,7 +154,6 @@ SimulationConfig load_config(const std::filesystem::path &path) {
         parse_riemann_type(require_value<std::string>((*solver)["riemann"], "solver.riemann"));
     cfg.solver.time =
         parse_time_integrator_type(require_value<std::string>((*solver)["time"], "solver.time"));
-    cfg.solver.limiter = require_value<std::string>((*solver)["limiter"], "solver.limiter");
 
     const toml::table *time = tbl["time"].as_table();
     if (!time) throw std::runtime_error("Missing or invalid [time] table");

@@ -9,7 +9,7 @@ spatial_unit_y = "m"
 spatial_unit_h = "m"
 
 [bathymetry]
-type = "GaussHill"               # [Flat, GaussHill, None]
+type = "Flat"               # [Flat, GaussHill, None]
 b0 = 1.0                    # Flat, GaussHill
 bathy_x0 = 5.0
 bathy_y0 = 5.0
@@ -41,17 +41,16 @@ dam_radius = 3.0                # DamBreakRadial
 reconstruction = "MUSCL"       # [PiecewiseConst, MUSCL]
 riemann = "HLL"                     # [Rusanov, HLL, ROE]
 time = "SSPRK3"
-limiter = "minmod"
 
 [time]
 end_time = 5.0
-time_steps = 1000
+time_steps = 10000
 cfl = 0.45
 time_unit = "s"
-save_every = 10        # every * step gets written out
+save_every = 10000        # every * step gets written out
 
 [backend]
-type = "OpenMP"     # [Serial, OptimizedSerial, OpenMP]
+type = "OpenMP"     # [Serial, OptimizedSerial, OpenMP, CUDA, CUDA_4]
 threads = 8
 
 [sanity_checks]

@@ -4,7 +4,7 @@
 #include <filesystem>
 #include <string>
 
-enum class BackendType { Serial, OptimizedSerial, OpenMP };
+enum class BackendType { Serial, OptimizedSerial, OpenMP, CUDA, CUDA_4 };
 
 enum class BoundaryType { ReflectingWalls };
 
@@ -64,8 +64,6 @@ struct SolverConfig {
     ReconstructionType reconstruction{};
     RiemannType riemann{};
     TimeIntegratorType time{};
-
-    std::string limiter{};
 };
 
 struct TimeConfig {
