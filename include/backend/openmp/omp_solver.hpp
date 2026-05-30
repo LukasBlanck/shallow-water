@@ -142,9 +142,9 @@ class FastHLLMUSCLBathyOpenMPSolver {
 #pragma omp single
             {
                 std::cout << "INFO: OpenMP actual threads in parallel region = "
-                          << omp_get_num_threads() << ", max threads = " << omp_get_max_threads()
-                          << '\n'
-                          << std::flush;
+                          << omp_get_num_threads()
+                          << ", configured max threads = " << omp_get_max_threads()
+                          << ", available processors = " << omp_get_num_procs() << '\n';
             }
         }
 
