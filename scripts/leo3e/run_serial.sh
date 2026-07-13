@@ -1,24 +1,25 @@
 #!/bin/bash
-#$ -N swe_simulation
+#$ -N swe_serial
 #$ -q short.q,std.q
 #$ -cwd
 #$ -j yes
 #$ -l h_rt=0:20:0
-#$ -pe openmp 4
 
 set -euo pipefail
 
-CONFIG_FILE="simulation_config.toml"
-EXECUTABLE="./build/my_project"
+CONFIG_FILE="${CONFIG_FILE:-configs/simulation_config.toml}"
+BUILD_DIR="${BUILD_DIR:-build-serial}"
+EXECUTABLE="${BUILD_DIR}/swe_solver"
 BUILD_TYPE="${BUILD_TYPE:-Release}"
 
 echo "============================================================"
-echo "Job started on: $(date)"
-echo "Host: $(hostname)"
+echo "Serial SWE job"
+echo "Started:           $(date)"
+echo "Host:              $(hostname)"
 echo "Working directory: $(pwd)"
-echo "Config file: ${CONFIG_FILE}"
-echo "NSLOTS: ${NSLOTS:-1}"
-echo "BUILD_TYPE: ${BUILD_TYPE}"
+echo "Configuration:     ${CONFIG_FILE}"
+echo "Build directory:   ${BUILD_DIR}"
+echo "Build type:        ${BUILD_TYPE}"
 echo "============================================================"
 
 # ============================================================
@@ -26,22 +27,18 @@ echo "============================================================"
 # ============================================================
 
 echo "Loading modules..."
+
 module purge
 module load gcc/10.3.0
 module load cmake/3.15.3
-
-# NetCDF C module.
-# Keep this consistent with your local netcdf-cxx4 installation.
 module load netcdf-4/4.3.3.1
 
 # ============================================================
-# NetCDF C from module
+# NetCDF C from cluster module
 # ============================================================
 
 if [[ -n "${NETCDF:-}" ]]; then
     export NETCDF_ROOT="${NETCDF}"
-    export NETCDF_DIR="${NETCDF}"
-    export NetCDF_ROOT="${NETCDF}"
 fi
 
 if [[ -n "${UIBK_NETCDF_4_INC:-}" ]]; then
@@ -56,7 +53,7 @@ if [[ -n "${UIBK_NETCDF_4_LIB:-}" ]]; then
 fi
 
 # ============================================================
-# HDF5 from NetCDF dependency
+# HDF5 dependency
 # ============================================================
 
 if [[ -n "${UIBK_HDF5_INC:-}" ]]; then
@@ -73,10 +70,10 @@ if [[ -n "${UIBK_HDF5_BIN:-}" ]]; then
 fi
 
 # ============================================================
-# NetCDF C++ from local user installation
+# NetCDF C++4 from user installation
 # ============================================================
 
-export NETCDF_CXX_ROOT="${HOME}/local/netcdf-cxx4"
+export NETCDF_CXX_ROOT="${NETCDF_CXX_ROOT:-${HOME}/local/netcdf-cxx4}"
 export NETCDF_CXX_INCLUDE_DIR="${NETCDF_CXX_ROOT}/include"
 export NETCDF_CXX_LIBRARY_DIR="${NETCDF_CXX_ROOT}/lib"
 
@@ -86,48 +83,13 @@ export LD_LIBRARY_PATH="${NETCDF_CXX_LIBRARY_DIR}:${LD_LIBRARY_PATH:-}"
 export PKG_CONFIG_PATH="${NETCDF_CXX_LIBRARY_DIR}/pkgconfig:${PKG_CONFIG_PATH:-}"
 
 # ============================================================
-# OpenMP runtime settings
-# ============================================================
-#
-# This does NOT force OpenMP compilation.
-#
-# CMake decides whether OpenMP is available:
-#
-#   OpenMP found:
-#       builds with OpenMP
-#       backend.type = "OpenMP" works
-#
-#   OpenMP not found:
-#       builds without OpenMP
-#       CMake prints warning
-#       backend.type = "OpenMP" throws runtime error from C++
-#
-#   OpenMP manually disabled in CMake:
-#       builds without OpenMP
-#       backend.type = "OpenMP" throws runtime error from C++
-#
-# This script only tells the executable how many threads the scheduler gave it.
-
-export OMP_NUM_THREADS="${NSLOTS:-1}"
-export OMP_PROC_BIND=true
-export OMP_PLACES=cores
-export OMP_DISPLAY_ENV=false
-
-echo "============================================================"
-echo "OpenMP runtime settings"
-echo "============================================================"
-echo "OMP_NUM_THREADS=${OMP_NUM_THREADS}"
-echo "OMP_PROC_BIND=${OMP_PROC_BIND}"
-echo "OMP_PLACES=${OMP_PLACES}"
-echo "OMP_DISPLAY_ENV=${OMP_DISPLAY_ENV}"
-
-# ============================================================
 # Diagnostics
 # ============================================================
 
 echo "============================================================"
 echo "Loaded modules"
 echo "============================================================"
+
 module list || true
 
 echo "============================================================"
@@ -135,88 +97,55 @@ echo "Toolchain"
 echo "============================================================"
 
 echo "Compiler:"
-which g++
+command -v g++
 g++ --version
 
 echo
 echo "CMake:"
-which cmake
+command -v cmake
 cmake --version
 
 echo
-echo "Pkg-config:"
-which pkg-config || true
-pkg-config --version || true
-
-echo "============================================================"
-echo "NetCDF diagnostics"
-echo "============================================================"
-
+echo "NetCDF paths:"
 echo "NETCDF_ROOT=${NETCDF_ROOT:-not set}"
 echo "NETCDF_INCLUDE_DIR=${NETCDF_INCLUDE_DIR:-not set}"
 echo "NETCDF_LIBRARY_DIR=${NETCDF_LIBRARY_DIR:-not set}"
-echo "NETCDF_CXX_ROOT=${NETCDF_CXX_ROOT:-not set}"
-echo "NETCDF_CXX_INCLUDE_DIR=${NETCDF_CXX_INCLUDE_DIR:-not set}"
-echo "NETCDF_CXX_LIBRARY_DIR=${NETCDF_CXX_LIBRARY_DIR:-not set}"
-
-echo
-echo "CPATH=${CPATH:-not set}"
-echo "LIBRARY_PATH=${LIBRARY_PATH:-not set}"
-echo "LD_LIBRARY_PATH=${LD_LIBRARY_PATH:-not set}"
-echo "PKG_CONFIG_PATH=${PKG_CONFIG_PATH:-not set}"
-
-echo
-echo "NetCDF C headers:"
-find "${NETCDF_INCLUDE_DIR:-/does/not/exist}" -maxdepth 1 -type f \
-    | grep -Ei 'netcdf' || true
-
-echo
-echo "NetCDF C libraries:"
-find "${NETCDF_LIBRARY_DIR:-/does/not/exist}" -maxdepth 1 \( -type f -o -type l \) \
-    | grep -Ei 'libnetcdf' || true
-
-echo
-echo "NetCDF C++ headers:"
-find "${NETCDF_CXX_INCLUDE_DIR:-/does/not/exist}" -maxdepth 1 -type f \
-    | grep -Ei 'ncfile|ncgroup|ncvar|netcdf' || true
-
-echo
-echo "NetCDF C++ libraries:"
-find "${NETCDF_CXX_LIBRARY_DIR:-/does/not/exist}" -maxdepth 1 \( -type f -o -type l \) \
-    | grep -Ei 'libnetcdf.*c\+\+|libnetcdf_c' || true
-
-echo
-echo "ncxx4-config:"
-which ncxx4-config || true
-ncxx4-config --all 2>/dev/null || true
+echo "NETCDF_CXX_ROOT=${NETCDF_CXX_ROOT}"
+echo "NETCDF_CXX_INCLUDE_DIR=${NETCDF_CXX_INCLUDE_DIR}"
+echo "NETCDF_CXX_LIBRARY_DIR=${NETCDF_CXX_LIBRARY_DIR}"
 
 # ============================================================
 # Build
 # ============================================================
 
 echo "============================================================"
-echo "Building project inside the job"
+echo "Configuring serial build"
 echo "============================================================"
 
-rm -rf build
+rm -rf "${BUILD_DIR}"
 
-cmake -S . -B build \
+cmake -S . -B "${BUILD_DIR}" \
     -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" \
-    -DENABLE_OPENMP=ON \
-    -DREQUIRE_OPENMP=OFF \
+    -DENABLE_OPENMP=OFF \
+    -DENABLE_CUDA=OFF \
+    -DENABLE_CUDA_4=OFF \
     -DNETCDF_ROOT="${NETCDF_ROOT:-}" \
     -DNETCDF_INCLUDE_DIR="${NETCDF_INCLUDE_DIR:-}" \
     -DNETCDF_LIBRARY_DIR="${NETCDF_LIBRARY_DIR:-}" \
-    -DNETCDF_CXX_ROOT="${NETCDF_CXX_ROOT:-}" \
-    -DNETCDF_CXX_INCLUDE_DIR="${NETCDF_CXX_INCLUDE_DIR:-}" \
-    -DNETCDF_CXX_LIBRARY_DIR="${NETCDF_CXX_LIBRARY_DIR:-}"
+    -DNETCDF_CXX_ROOT="${NETCDF_CXX_ROOT}" \
+    -DNETCDF_CXX_INCLUDE_DIR="${NETCDF_CXX_INCLUDE_DIR}" \
+    -DNETCDF_CXX_LIBRARY_DIR="${NETCDF_CXX_LIBRARY_DIR}"
 
-cmake --build build -j "${NSLOTS:-1}"
+echo "============================================================"
+echo "Compiling serial executable"
+echo "============================================================"
+
+cmake --build "${BUILD_DIR}"
 
 if [[ ! -x "${EXECUTABLE}" ]]; then
-    echo "ERROR: executable ${EXECUTABLE} not found or not executable."
-    echo "Available executables in build/:"
-    find build -maxdepth 3 -type f -executable || true
+    echo "ERROR: executable '${EXECUTABLE}' was not created."
+    echo "Executable files found under '${BUILD_DIR}':"
+    find "${BUILD_DIR}" -maxdepth 3 -type f -executable || true
     exit 1
 fi
 
@@ -224,12 +153,17 @@ fi
 # Run
 # ============================================================
 
+if [[ ! -f "${CONFIG_FILE}" ]]; then
+    echo "ERROR: configuration file '${CONFIG_FILE}' does not exist."
+    exit 1
+fi
+
 echo "============================================================"
-echo "Running simulation"
+echo "Running serial simulation"
 echo "============================================================"
 
 "${EXECUTABLE}" "${CONFIG_FILE}"
 
 echo "============================================================"
-echo "Job finished on: $(date)"
+echo "Job finished: $(date)"
 echo "============================================================"

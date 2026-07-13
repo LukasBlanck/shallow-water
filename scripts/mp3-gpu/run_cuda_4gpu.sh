@@ -10,10 +10,10 @@ set -euo pipefail
 
 CONFIG_FILE="${1:-configs/simulation_config.toml}"
 BUILD_TYPE="${BUILD_TYPE:-Release}"
-BUILD_DIR="${BUILD_DIR:-build-cuda}"
-EXECUTABLE="${EXECUTABLE:-${BUILD_DIR}/my_project}"
-OUTFILE="swe_cuda.out"
-ARCHIVE="swe_cuda.outs_old"
+BUILD_DIR="${BUILD_DIR:-build-cuda-4gpu}"
+EXECUTABLE="${EXECUTABLE:-${BUILD_DIR}/swe_solver}"
+OUTFILE="swe_cuda_4gpu.out"
+ARCHIVE="swe_cuda_4gpu.outs_old"
 
 section() {
     echo
@@ -75,7 +75,7 @@ load_build_toolchain() {
 }
 
 print_diagnostics() {
-    section "CUDA SWE job"
+    section "CUDA SWE 4-GPU job"
     echo "JOB-ID:      ${SLURM_JOB_ID:-unknown}"
     echo "Node:        $(hostname)"
     echo "Workdir:     $(pwd)"
@@ -94,17 +94,18 @@ print_diagnostics() {
     section "GPU diagnostics"
     nvidia-smi || true
     nvidia-smi -L || true
+    echo "CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-not set}"
 }
 
 configure_build() {
-    section "Configuring CUDA build"
+    section "Configuring CUDA 4-GPU build"
     rm -rf "${BUILD_DIR}"
     cmake -S . -B "${BUILD_DIR}" \
         -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" \
         -DCMAKE_C_COMPILER="${CC}" \
         -DCMAKE_CXX_COMPILER="${CXX}" \
         -DCMAKE_CUDA_HOST_COMPILER="${CUDAHOSTCXX}" \
-        -DENABLE_CUDA=ON \
+        -DENABLE_CUDA_4=ON \
         -DREQUIRE_CUDA=ON \
         -DENABLE_OPENMP=OFF \
         -DREQUIRE_OPENMP=OFF \
@@ -119,11 +120,11 @@ build_and_run() {
     section "Building"
     cmake --build "${BUILD_DIR}" -j "${SLURM_CPUS_PER_TASK:-${SLURM_CPUS_ON_NODE:-4}}"
 
-    section "Running CUDA SWE solver"
+    section "Running CUDA 4-GPU SWE solver"
     [[ -x "${EXECUTABLE}" ]] || { echo "ERROR: executable not found: ${EXECUTABLE}"; find "${BUILD_DIR}" -maxdepth 4 -type f -executable || true; exit 1; }
     srun -n 1 -c "${SLURM_CPUS_PER_TASK:-1}" "${EXECUTABLE}" "${CONFIG_FILE}"
 
-    section "CUDA SWE solver finished successfully"
+    section "CUDA 4-GPU SWE solver finished successfully"
     echo "End time: $(date)"
 }
 
