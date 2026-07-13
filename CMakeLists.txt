@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.15)
-project(my_project CXX)
+project(swe_solver CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -17,7 +17,7 @@ option(REQUIRE_CUDA "Fail configuration if CUDA is not available" OFF)
 option(ENABLE_CUDA_4 "Build with CUDA_4 support if available" OFF)
 option(REQUIRE_CUDA_4 "Fail configuration if CUDA_4 is not available" OFF)
 
-add_executable(my_project
+add_executable(swe_solver
     apps/main.cpp
     include/io/netCDF_writer.cpp
     configs/simulation_config.cpp
@@ -25,7 +25,7 @@ add_executable(my_project
     include/io/sanity_checks_netcdf_writer.cpp
 )
 
-target_include_directories(my_project
+target_include_directories(swe_solver
     PRIVATE
     ${CMAKE_SOURCE_DIR}
 )
@@ -39,7 +39,7 @@ endif()
 
 if(NETCDF_FOUND)
     message(STATUS "Found NetCDF C via pkg-config")
-    target_link_libraries(my_project PRIVATE PkgConfig::NETCDF)
+    target_link_libraries(swe_solver PRIVATE PkgConfig::NETCDF)
 else()
     find_path(NETCDF_INCLUDE_DIR_FOUND
         NAMES netcdf.h
@@ -66,13 +66,13 @@ else()
     message(STATUS "Found NetCDF C include: ${NETCDF_INCLUDE_DIR_FOUND}")
     message(STATUS "Found NetCDF C library: ${NETCDF_LIBRARY_FOUND}")
 
-    target_include_directories(my_project PRIVATE ${NETCDF_INCLUDE_DIR_FOUND})
-    target_link_libraries(my_project PRIVATE ${NETCDF_LIBRARY_FOUND})
+    target_include_directories(swe_solver PRIVATE ${NETCDF_INCLUDE_DIR_FOUND})
+    target_link_libraries(swe_solver PRIVATE ${NETCDF_LIBRARY_FOUND})
 endif()
 
 if(NETCDFCXX_FOUND)
     message(STATUS "Found NetCDF C++ via pkg-config")
-    target_link_libraries(my_project PRIVATE PkgConfig::NETCDFCXX)
+    target_link_libraries(swe_solver PRIVATE PkgConfig::NETCDFCXX)
 else()
     find_path(NETCDFCXX_INCLUDE_DIR_FOUND
         NAMES ncFile.h netcdf
@@ -97,8 +97,8 @@ else()
     message(STATUS "Found NetCDF C++ include: ${NETCDFCXX_INCLUDE_DIR_FOUND}")
     message(STATUS "Found NetCDF C++ library: ${NETCDFCXX_LIBRARY_FOUND}")
 
-    target_include_directories(my_project PRIVATE ${NETCDFCXX_INCLUDE_DIR_FOUND})
-    target_link_libraries(my_project PRIVATE ${NETCDFCXX_LIBRARY_FOUND})
+    target_include_directories(swe_solver PRIVATE ${NETCDFCXX_INCLUDE_DIR_FOUND})
+    target_link_libraries(swe_solver PRIVATE ${NETCDFCXX_LIBRARY_FOUND})
 endif()
 
 # ============================================================
@@ -121,8 +121,8 @@ if(ENABLE_OPENMP)
     if(OpenMP_CXX_FOUND)
         message(STATUS "OpenMP found")
         message(STATUS "OpenMP_CXX_FLAGS=${OpenMP_CXX_FLAGS}")
-        target_link_libraries(my_project PRIVATE OpenMP::OpenMP_CXX)
-        target_compile_definitions(my_project PRIVATE USE_OPENMP=1)
+        target_link_libraries(swe_solver PRIVATE OpenMP::OpenMP_CXX)
+        target_compile_definitions(swe_solver PRIVATE USE_OPENMP=1)
     elseif(REQUIRE_OPENMP)
         message(FATAL_ERROR
             "OpenMP was requested but not found.\n"
@@ -142,11 +142,11 @@ if(ENABLE_OPENMP)
             "OpenMP not found. Building serial/non-OpenMP solver only.\n"
             "To require OpenMP, configure with -DREQUIRE_OPENMP=ON."
         )
-        target_compile_definitions(my_project PRIVATE USE_OPENMP=0)
+        target_compile_definitions(swe_solver PRIVATE USE_OPENMP=0)
     endif()
 else()
     message(STATUS "OpenMP disabled")
-    target_compile_definitions(my_project PRIVATE USE_OPENMP=0)
+    target_compile_definitions(swe_solver PRIVATE USE_OPENMP=0)
 endif()
 
 # ============================================================
@@ -163,10 +163,10 @@ if(ENABLE_CUDA)
         message(STATUS "CMAKE_CUDA_COMPILER=${CMAKE_CUDA_COMPILER}")
         message(STATUS "CUDAToolkit_VERSION=${CUDAToolkit_VERSION}")
 
-        target_compile_definitions(my_project PRIVATE USE_CUDA=1)
-        target_link_libraries(my_project PRIVATE CUDA::cudart)
+        target_compile_definitions(swe_solver PRIVATE USE_CUDA=1)
+        target_link_libraries(swe_solver PRIVATE CUDA::cudart)
 
-        set_target_properties(my_project PROPERTIES
+        set_target_properties(swe_solver PROPERTIES
             CUDA_SEPARABLE_COMPILATION ON
         )
 
@@ -180,11 +180,11 @@ if(ENABLE_CUDA)
         message(FATAL_ERROR "CUDA was requested but not found. Need nvcc and cuda_runtime.h.")
     else()
         message(WARNING "CUDA not found. Building without CUDA.")
-        target_compile_definitions(my_project PRIVATE USE_CUDA=0)
+        target_compile_definitions(swe_solver PRIVATE USE_CUDA=0)
     endif()
 else()
     message(STATUS "Single-GPU CUDA backend disabled")
-    target_compile_definitions(my_project PRIVATE USE_CUDA=0)
+    target_compile_definitions(swe_solver PRIVATE USE_CUDA=0)
 endif()
 
 if(ENABLE_CUDA)
@@ -196,9 +196,9 @@ if(ENABLE_CUDA)
             LANGUAGE CUDA
     )
 
-    target_compile_definitions(my_project PRIVATE USE_CUDA=1)
+    target_compile_definitions(swe_solver PRIVATE USE_CUDA=1)
 
-    set_target_properties(my_project PROPERTIES
+    set_target_properties(swe_solver PROPERTIES
         CUDA_ARCHITECTURES 70
         CUDA_SEPARABLE_COMPILATION ON
         CUDA_STANDARD 17
@@ -207,11 +207,11 @@ if(ENABLE_CUDA)
         CXX_STANDARD_REQUIRED ON
     )
 
-    target_compile_options(my_project PRIVATE
+    target_compile_options(swe_solver PRIVATE
         $<$<COMPILE_LANGUAGE:CUDA>:--allow-unsupported-compiler>
     )
 else()
-    target_compile_definitions(my_project PRIVATE USE_CUDA=0)
+    target_compile_definitions(swe_solver PRIVATE USE_CUDA=0)
 endif()
 
 # ============================================================
@@ -228,10 +228,10 @@ if(ENABLE_CUDA_4)
         message(STATUS "CMAKE_CUDA_COMPILER=${CMAKE_CUDA_COMPILER}")
         message(STATUS "CUDAToolkit_VERSION=${CUDAToolkit_VERSION}")
 
-        target_compile_definitions(my_project PRIVATE USE_CUDA_4=1)
-        target_link_libraries(my_project PRIVATE CUDA::cudart)
+        target_compile_definitions(swe_solver PRIVATE USE_CUDA_4=1)
+        target_link_libraries(swe_solver PRIVATE CUDA::cudart)
 
-        set_target_properties(my_project PROPERTIES
+        set_target_properties(swe_solver PROPERTIES
             CUDA_SEPARABLE_COMPILATION ON
         )
 
@@ -245,11 +245,11 @@ if(ENABLE_CUDA_4)
         message(FATAL_ERROR "CUDA was requested but not found. Need nvcc and cuda_runtime.h.")
     else()
         message(WARNING "CUDA not found. Building without CUDA.")
-        target_compile_definitions(my_project PRIVATE USE_CUDA_4=0)
+        target_compile_definitions(swe_solver PRIVATE USE_CUDA_4=0)
     endif()
 else()
-    message(STATUS "4-GPU CUDA backend enabled")
-    target_compile_definitions(my_project PRIVATE USE_CUDA_4=0)
+    message(STATUS "4-GPU CUDA backend disabled")
+    target_compile_definitions(swe_solver PRIVATE USE_CUDA_4=0)
 endif()
 
 if(ENABLE_CUDA_4)
@@ -261,9 +261,9 @@ if(ENABLE_CUDA_4)
             LANGUAGE CUDA
     )
 
-    target_compile_definitions(my_project PRIVATE USE_CUDA_4=1)
+    target_compile_definitions(swe_solver PRIVATE USE_CUDA_4=1)
 
-    set_target_properties(my_project PROPERTIES
+    set_target_properties(swe_solver PROPERTIES
         CUDA_ARCHITECTURES 70
         CUDA_SEPARABLE_COMPILATION ON
         CUDA_STANDARD 17
@@ -272,9 +272,9 @@ if(ENABLE_CUDA_4)
         CXX_STANDARD_REQUIRED ON
     )
 
-    target_compile_options(my_project PRIVATE
+    target_compile_options(swe_solver PRIVATE
         $<$<COMPILE_LANGUAGE:CUDA>:--allow-unsupported-compiler>
     )
 else()
-    target_compile_definitions(my_project PRIVATE USE_CUDA_4=0)
+    target_compile_definitions(swe_solver PRIVATE USE_CUDA_4=0)
 endif()
