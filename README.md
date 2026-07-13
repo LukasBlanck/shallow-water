@@ -200,11 +200,11 @@ CMAKE_PREFIX_PATH=/opt/local ./scripts/run.sh
 
 #### OpenMP
 
-CMake automatically searches for OpenMP and if it is found the OpenMP accelerated backend gets compiled to enable a toml change only backend choosing.
+CMake automatically searches for OpenMP during configuration. If OpenMP is found, the accelerated backend is included in the build and can be selected at runtime through the [simulation_config](configs/simulation_config.toml).
 
-If no OpenMP is found, the solver compiles only the serial solver.
+If OpenMP is unavailable, the project is built without the OpenMP backend, while the serial solvers remain available.
 
-To require OpenMP and fail configuration if no OpenMP found, run:
+To require OpenMP and fail configuration if no OpenMP is  found, run:
 ```
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DENABLE_OPENMP=ON -DREQUIRE_OPENMP=ON
 ```
@@ -244,7 +244,7 @@ cat swe_cuda.out
 
 The script requests one CUDA-capable node, disables OpenMP, builds the CUDA backend, and launches one solver process using `srun`.
 
-The selected configuration must use the backend.type = "CUDA".
+The selected configuration must use the backend.type = "CUDA" or the serial ones.
 
 ### Four-GPU CUDA job
 
@@ -255,7 +255,7 @@ cat swe_cuda_4gpu.out
 
 The script requests one CUDA-capable node and starts one process that manages the four devices.
 
-The selected configuration must use the backend.type = "CUDA_4".
+The selected configuration must use the backend.type = "CUDA_4" or the serial ones.
 
 ---
 
