@@ -1,7 +1,7 @@
 # Shallow Water Equations
 
 
-![Shallow Water Example](Shallow_water.png)
+![Shallow Water Example](docs/Shallow_water.png)
 ---
 
 ## Overview
@@ -263,10 +263,7 @@ $$
 The sanity check compares the current mass with the initial mass and reports the relative deviation:
 
 $$
-\varepsilon^n
-=
-\frac{\left|M^n-M^0\right|}
-     {M^0}.
+\varepsilon^n = \frac{\left|M^n-M^0\right|}{M^0}
 $$
 
 For refelecting boundary conditions, mass should be conserved up to floating-point roundoff or up to the numerical tolerance manually set in [simulation_config](configs/simulation_config.toml).
@@ -276,47 +273,19 @@ For refelecting boundary conditions, mass should be conserved up to floating-poi
 For the inviscid shallow water equations without external forcing, friction, or energy flux through the boundary, the total mechanical energy is
 
 $$
-E(t)
-=
-\int_{\Omega}
-\left[
-\frac{1}{2}h\left(u^2+v^2\right)
-+
-\frac{1}{2}gh^2
-\right]
-\,\mathrm{d}\Omega.
+E(t) = \int_{\Omega} \left[ \frac{1}{2}h\left(u^2+v^2\right) + \frac{1}{2}gh^2 \right] \,\mathrm{d}\Omega
 $$
 
 Using the conserved momenta $hu$ and $hv$, the discrete energy can be evaluated as
 
 $$
-E^n
-=
-\sum_{i,j}
-\left[
-\frac{(hu)_{i,j}^2+(hv)_{i,j}^2}
-     {2h_{i,j}}
-+
-\frac{1}{2}g h_{i,j}^2
-\right]
-\Delta x\,\Delta y.
+E^n = \sum_{i,j} \left[ \frac{(hu)_{i,j}^2+(hv)_{i,j}^2}{2h_{i,j}} + \frac{1}{2}g h_{i,j}^2 \right] \Delta x\,\Delta y
 $$
 
 If bottom topography is included, the gravitational potential-energy contribution associated with the bottom elevation must also be taken into account:
 
 $$
-E^n
-=
-\sum_{i,j}
-\left[
-\frac{(hu)_{i,j}^2+(hv)_{i,j}^2}
-     {2h_{i,j}}
-+
-\frac{1}{2}g h_{i,j}^2
-+
-g h_{i,j} b_{i,j}
-\right]
-\Delta x\,\Delta y.
+E^n = \sum_{i,j} \left[ \frac{(hu)_{i,j}^2+(hv)_{i,j}^2}{2h_{i,j}}+\frac{1}{2}g h_{i,j}^2+g h_{i,j} b_{i,j}\right]\Delta x\,\Delta y
 $$
 
 Unlike mass, total energy is not necessarily conserved exactly by the numerical method. Approximate Riemann solvers and slope limiters introduce numerical dissipation, so a gradual decrease in energy can be expected. A sudden increase, a non-finite value, or a large unexplained deviation may indicate numerical instability.
@@ -327,9 +296,7 @@ Unlike mass, total energy is not necessarily conserved exactly by the numerical 
 A physically valid shallow-water state requires a non-negative water depth:
 
 $$
-h_{i,j} \geq 0
-\qquad
-\text{for all cells }(i,j).
+h_{i,j} \geq 0 \qquad\text{for all cells }(i,j).
 $$
 
 The positivity check monitors the minimum water depth in the computational domain and detects negative states and throws runtime errors if detected.
