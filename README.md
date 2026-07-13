@@ -55,15 +55,16 @@ $$
 \partial _t (hv) + \partial _y (hv^2 + \frac{1}{2}gh^2) + \partial _x (huv) = 0
 $$
 
-The closed form PDE can be written as:
+They can be compactly written as:
 
 $$
 \partial _t U + \partial _x F(U) + \partial _y G(U) = 0
 $$
 
 with 
+
 $$
- U = \begin{bmatrix} h \\ hu \\ hv \end{bmatrix} \qquad F(U) = \begin{bmatrix} hu \\ hu^2 +  \frac{1}{2}gh^2\\ huv \end{bmatrix}  \qquad G(U) = \begin{bmatrix} hv \\ huv \\ hv^2 +  \frac{1}{2}gh^2 \end{bmatrix} 
+U = \begin{bmatrix} h \\ hu \\ hv \end{bmatrix} \qquad F(U) = \begin{bmatrix} hu \\ hu^2 +  \frac{1}{2}gh^2 \\ huv \end{bmatrix} \qquad G(U) = \begin{bmatrix} hv \\ huv \\ hv^2 +  \frac{1}{2}gh^2 \end{bmatrix} 
 $$
 
 For a more general purpose library, an arbitrary bottom potpography is available. In the PDE, this is portraid as a source term in the following form:
@@ -106,7 +107,7 @@ The Riemann solvers all need values from their boardering cells. First order Fin
 ![](docs/Solver_structure.svg)
 
 The library consists of a highly modular, but not optimized 
-- SerialSolver
+- `SerialSolver`
     - good for comparison of different Riemann and Reconstruction methods
     - easily extendable 
     - not very fast
