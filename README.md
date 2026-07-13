@@ -138,6 +138,24 @@ To build and run the project, you need:
 
 ## Compile and Run
 
+> **Important:** The backend selected in [configs/simulation_config.toml](configs/simulation_config.toml) must be available in the chosen build configuration.
+
+
+
+---
+
+>The OpenMP and CUDA backends are conditionally compiled. If a dependency is unavailable or explicitly disabled, the corresponding accelerated backend is omitted, while the serial backends remain available.
+
+CMake options:
+
+- `-DENABLE_OPENMP=ON`
+- `-DREQUIRE_OPENMP=ON` 
+    - Fails configuration if OpenMP is unavailable.
+- `-DENABLE_CUDA=ON`
+- `-DENABLE_CUDA_4=ON`
+
+---
+
 Configure the project:
 
 ```
@@ -180,8 +198,6 @@ CMAKE_PREFIX_PATH=/opt/local ./scripts/run.sh
 ```
 
 #### OpenMP
-
-The OpenMP and CUDA backends are conditionally compiled. If either dependency is unavailable or explicitly disabled, the corresponding accelerated backend is excluded while the serial solver remains available.
 
 CMake automatically searches for OpenMP and if it is found the OpenMP accelerated backend gets compiled to enable a toml change only backend choosing.
 
