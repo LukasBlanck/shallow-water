@@ -8,8 +8,9 @@ hv
 $$
 
 ### Homogeneous, flat bottom
-$
-{\partial _t} U  + {\partial _x} F(U)   + {\partial _y} G(U) = 0    $
+$$
+{\partial _t} U  + {\partial _x} F(U)   + {\partial _y} G(U) = 0
+$$
 
 
 $$
@@ -31,10 +32,11 @@ hv^2 + \frac{1}{2}gh^2
 $$
 
 
-
+```
 h(x,y,t) .... water height
 u(x,y,t) .... x-velocity
 v(x,y,t) .... y-velocity
+```
 
 ## Reflecting Walls
 
@@ -252,14 +254,12 @@ $$
 
 Top state from cell $C_{i,j+1}$:
 $$
-U_{i,j+\frac12}^{+}=
-\bar U_{i,j+1}
--\frac12\,\sigma^y_{i,j+1}.
+U_{i,j+\frac12}^{+}= \bar U_{i,j+1}-\frac12,\sigma^y_{i,j+1}.
 $$
 
 So:
 $$
-U_B = U_{i,j+\frac12}^{-}, \qquad U_T = U_{i,j+\frac12}^{+}.
+U_B = U_{i,j+\frac12}^{-}, \qquad U_T = U_{i,+\frac12}^{+}.
 $$
 
 ---
@@ -271,34 +271,27 @@ $$
 #### x-interface flux
 
 At interface $\left(i+\tfrac12,j\right)$, let
+
 $$
-U_L = U_{i+\frac12,j}^{-},
-\qquad
-U_R = U_{i+\frac12,j}^{+}.
+U_L = U_{i+\frac12,j}^{-},\qquad U_R = U_{i+\frac12,j}^{+}.
 $$
 
 Define
+
 $$
 c_L=\sqrt{g h_L}, \qquad c_R=\sqrt{g h_R}.
 $$
 
 Estimate the left and right wave speeds by
+
 $$
-s_L = \min(u_L-c_L,\;u_R-c_R),
-\qquad
-s_R = \max(u_L+c_L,\;u_R+c_R).
+s_L = \min(u_L-c_L,\;u_R-c_R),\qquad s_R = \max(u_L+c_L,\;u_R+c_R).
 $$
 
 Then the HLL flux is
 
 $$
-\hat F_{i+\frac12,j}=
-\begin{cases}
-F(U_L), & s_L \ge 0,\\[2mm]
-\dfrac{s_R F(U_L)-s_L F(U_R)+s_L s_R (U_R-U_L)}{s_R-s_L},
-& s_L < 0 < s_R,\\[4mm]
-F(U_R), & s_R \le 0.
-\end{cases}
+\hat F_{i+\frac12,j}=\begin{cases} F(U_L), & s_L \ge 0,\\[2mm] \dfrac{s_R F(U_L)-s_L F(U_R)+s_L s_R(U_R-U_L)}{s_R-s_L},& s_L < 0 < s_R,\\[4mm] F(U_R), & s_R \le 0 \end{cases}
 $$
 
 ---
@@ -306,34 +299,27 @@ $$
 #### y-interface flux
 
 At interface $\left(i,j+\tfrac12\right)$, let
+
 $$
-U_B = U_{i,j+\frac12}^{-},
-\qquad
-U_T = U_{i,j+\frac12}^{+}.
+U_B = U_{i,j+\frac12}^{-}, \qquad U_T = U_{i,j+\frac12}^{+}
 $$
 
 Define
+
 $$
-c_B=\sqrt{g h_B}, \qquad c_T=\sqrt{g h_T}.
+c_B=\sqrt{g h_B}, \qquad c_T=\sqrt{g h_T}
 $$
 
 Estimate
+
 $$
-s_B = \min(v_B-c_B,\;v_T-c_T),
-\qquad
-s_T = \max(v_B+c_B,\;v_T+c_T).
+s_B = \min(v_B-c_B,\;v_T-c_T), \qquad s_T = \max(v_B+c_B,\;v_T+c_T)
 $$
 
 Then
 
 $$
-\hat G_{i,j+\frac12}=
-\begin{cases}
-G(U_B), & s_B \ge 0,\\[2mm]
-\dfrac{s_T G(U_B)-s_B G(U_T)+s_B s_T (U_T-U_B)}{s_T-s_B},
-& s_B < 0 < s_T,\\[4mm]
-G(U_T), & s_T \le 0.
-\end{cases}
+\hat G_{i,j+\frac12}= \begin{cases} G(U_B), & s_B \ge 0,\\[2mm] \dfrac{s_T G(U_B)-s_B G(U_T)+s_B s_T (U_T-U_B)}{s_T-s_B}, & s_B < 0 < s_T,\\[4mm] G(U_T), & s_T \le 0 \end{cases}
 $$
 
 ---
@@ -343,9 +329,7 @@ $$
 The Roe flux has the form
 
 $$
-\hat F_{i+\frac12,j}=
-\frac12\Bigl(F(U_L)+F(U_R)\Bigr)-
-\frac12 \sum_{k=1}^3 |\lambda_k|\,\alpha_k\,r_k
+\hat F_{i+\frac12,j}= \frac12\Bigl(F(U_L)+F(U_R)\Bigr)- \frac12 \sum_{k=1}^3 |\lambda_k|\,\alpha_k\,r_k
 $$
 
 in x-direction, and analogously in y-direction.
