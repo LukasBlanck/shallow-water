@@ -313,23 +313,24 @@ For a detailed scaling analysis and some plots, take a look at [SWE_final](docs/
 Create and activate the virtual environment needed to run the visualization files:
 
 ```
-python3 -m venv venv
+python -m venv venv
 source venv/bin/activate
-python3 -m pip install -r configs/requirements.txt
+python -m pip install -r configs/requirements.txt
 ```
 
 For a 3D animation, run:
 
 ```
-python3 python/visualize_3D_animated.py
+python python/visualize_3D_animated.py
 ```
+
+The animated 3D script uses an interpolation between different cell values. For a fine enough grid that is accurate enough. For sparse grids and to inspect the exact call values, the following script is provided: `python/visualize_correct_grid3D.py`. It provides the snapshot at a chosen `TIME_INDEX`, currently set to 0.
 
 For a 2D animation, run:
 ```
-python3 python/visualize_2D_animated.py
+python python/visualize_2D_animated.py
 ```
 
-The stated visualization scripts use an interpolation between different cell values. For a fine enough grid that is accurate enough. For sparse grids and to inspect the exact call values, the following scripts are provided: `python/visualize_correct_grid2D.py` and `python/visualize_correct_grid3D.py` 
 
 #### Sanity Checks
 
