@@ -38,7 +38,7 @@ v(x,y,t) .... y-velocity
 
 ## Reflecting Walls
 
-normal velocity components at walls are set to zero, tangential is mirrored?
+normal velocity components at walls are mirrored, tangential is set to zero
 
 ## Grid
 Domain $$\Omega = [0, L_x][0, L_y]$$
