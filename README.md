@@ -221,22 +221,24 @@ The selected simulation configuration can use the OpenMP backend or the serial o
 ### Single-GPU CUDA job
 
 ```bash
-sbatch scripts/gpu/run_cuda.sh
+sbatch scripts/mp3-gpu/run_cuda.sh
+cat swe_cuda.out
 ```
 
 The script requests one CUDA-capable node, disables OpenMP, builds the CUDA backend, and launches one solver process using `srun`.
 
-The selected configuration must use the CUDA backend.
+The selected configuration must use the backend.type = "CUDA".
 
 ### Four-GPU CUDA job
 
 ```bash
-sbatch scripts/gpu/run_cuda_4gpu.sh
+sbatch scripts/mp3-gpu/run_cuda_4gpu.sh
+cat swe_cuda_4gpu.out
 ```
 
 The script requests one CUDA-capable node and starts one process that manages the four devices.
 
-The selected configuration must use the four-GPU CUDA backend.
+The selected configuration must use the backend.type = "CUDA_4".
 
 ---
 
